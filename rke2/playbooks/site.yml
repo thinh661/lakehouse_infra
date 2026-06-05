@@ -1,0 +1,9 @@
+---
+# Master Playbook for RKE2 HA Deployment
+
+- import_playbook: prereq.yml
+- import_playbook: haproxy.yml
+- import_playbook: rke2-first-server.yml
+- import_playbook: rke2-join-servers.yml
+- import_playbook: post-install.yml
+...

@@ -1,0 +1,23 @@
+---
+# RKE2 configuration variables
+rke2_version: "v1.36.1+rke2r2"
+rke2_token: "rke2-secret-token-production-2026"
+loadbalancer_ip: "192.168.49.144"
+
+# RKE2 servers backend list (for HAProxy and config)
+rke2_servers:
+  - name: rke2_server_1
+    ip: 192.168.49.141
+  - name: rke2_server_2
+    ip: 192.168.49.142
+  - name: rke2_server_3
+    ip: 192.168.49.143
+
+# TLS SAN list for api-server certificate configuration
+tls_sans:
+  - "192.168.49.144" # Load Balancer IP
+  - "192.168.49.141"
+  - "192.168.49.142"
+  - "192.168.49.143"
+  - "localhost"
+  - "127.0.0.1"

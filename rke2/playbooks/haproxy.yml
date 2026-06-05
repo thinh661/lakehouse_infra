@@ -1,0 +1,84 @@
+---
+- name: Set up HAProxy Load Balancer on Bastion Node
+  hosts: bastion
+  become: yes
+  tasks:
+    - name: Install HAProxy
+      apt:
+        name: haproxy
+        state: present
+        update_cache: yes
+
+    - name: Configure HAProxy for RKE2 ports
+      blockinfile:
+        path: /etc/haproxy/haproxy.cfg
+        marker: "# {mark} ANSIBLE MANAGED BLOCK FOR RKE2"
+        block: |
+          
+          # Kubernetes API Server balancing
+          frontend k8s_api_front
+              bind *:6443
+              mode tcp
+              option tcplog
+              default_backend k8s_api_back
+          
+          backend k8s_api_back
+              mode tcp
+              option tcp-check
+              balance roundrobin
+              {% for server in rke2_servers %}
+              server {{ server.name }} {{ server.ip }}:6443 check inter 2s fall 3 rise 2
+              {% endfor %}
+          
+          # RKE2 Supervisor balancing
+          frontend rke2_supervisor_front
+              bind *:9345
+              mode tcp
+              option tcplog
+              default_backend rke2_supervisor_back
+          
+          backend rke2_supervisor_back
+              mode tcp
+              option tcp-check
+              balance roundrobin
+              {% for server in rke2_servers %}
+              server {{ server.name }} {{ server.ip }}:9345 check inter 2s fall 3 rise 2
+              {% endfor %}
+
+          # HTTP traffic balancing
+          frontend http_front
+              bind *:80
+              mode tcp
+              option tcplog
+              default_backend http_back
+          
+          backend http_back
+              mode tcp
+              option tcp-check
+              balance roundrobin
+              {% for server in rke2_servers %}
+              server {{ server.name }} {{ server.ip }}:80 check inter 2s fall 3 rise 2
+              {% endfor %}
+
+          # HTTPS traffic balancing
+          frontend https_front
+              bind *:443
+              mode tcp
+              option tcplog
+              default_backend https_back
+          
+          backend https_back
+              mode tcp
+              option tcp-check
+              balance roundrobin
+              {% for server in rke2_servers %}
+              server {{ server.name }} {{ server.ip }}:443 check inter 2s fall 3 rise 2
+              {% endfor %}
+      notify: Restart HAProxy
+
+  handlers:
+    - name: Restart HAProxy
+      service:
+        name: haproxy
+        state: restarted
+        enabled: yes

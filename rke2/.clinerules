@@ -1,0 +1,38 @@
+# Workspace Rules & Context: RKE2 HA Cluster
+
+This file provides the context of the workspace to help AI assistants understand the environment immediately, saving token usage and preventing redundant questions.
+
+## 1. Project Overview
+This workspace is designed to deploy a production-grade High Availability (HA) RKE2 Kubernetes cluster using 4 Ubuntu VMs:
+- **3 Server Nodes (Control Plane + etcd + Worker)**: Run the Kubernetes components and etcd storage database in an active-active HA configuration.
+- **1 Bastion Node + Load Balancer**: Serves as the central administration gateway and handles TCP load balancing to the Control Plane nodes.
+
+## 2. Infrastructure Setup (VMs & Network)
+- **Subnet**: `192.168.49.0/24`
+- **User / Password**: `thinh1` / `123123123` (used for standard SSH & sudo access)
+- **Node IP Assignments**:
+  - `192.168.49.141` -> `rke2-server-1` (Primary bootstrap server)
+  - `192.168.49.142` -> `rke2-server-2` (Secondary HA server)
+  - `192.168.49.143` -> `rke2-server-3` (Secondary HA server)
+  - `192.168.49.144` -> `bastion` (HAProxy Load Balancer & kubectl Admin Client)
+
+## 3. Technology Stack & Key Decisions
+- **Ansible**: Used for automated provisioning, OS configuration, HAProxy installation, RKE2 deployment, and kubectl client setup.
+- **RKE2 Version**: `v1.36.1+rke2r2` (Upstream Kubernetes v1.36.x)
+- **Ingress Controller**: **Traefik**
+  - *Reasoning*: Starting in RKE2 v1.36+, Traefik replaced NGINX Ingress as the default controller since ingress-nginx was retired upstream by Rancher.
+  - *Constraint*: Do not install both NGINX Ingress and Traefik together. This avoids host port conflicts (80/443) and saves precious RAM on these resource-constrained 6GB RAM nodes.
+- **HAProxy Ports**:
+  - `6443` -> Balances traffic to ports 6443 on `.141`, `.142`, `.143` (K8s API)
+  - `9345` -> Balances traffic to ports 9345 on `.141`, `.142`, `.143` (RKE2 Supervisor)
+
+## 4. Codebase Directory Structure
+All Ansible files are stored in `d:/workspace_thinh1/lakehouse/rke2/`:
+- `inventory.ini` - Lists hosts, IP mapping, and group variables for SSH passwords.
+- `group_vars/all.yml` - Defines global configurations (versions, tokens, TLS SANs).
+- `playbooks/site.yml` - Master playbook calling other scripts in sequence.
+- `playbooks/prereq.yml` - Sets OS requirements (swapoff, sysctl, kernel modules, firewall).
+- `playbooks/haproxy.yml` - Installs and configures TCP balancing on the Bastion.
+- `playbooks/rke2-first-server.yml` - Boots the primary master node (.141).
+- `playbooks/rke2-join-servers.yml` - Registers secondary master nodes (.142 & .143).
+- `playbooks/post-install.yml` - Copies kubeconfig to Bastion and sets up kubectl for local administration.

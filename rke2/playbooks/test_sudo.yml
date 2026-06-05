@@ -1,0 +1,19 @@
+---
+- name: Diagnose Sudo Access
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Run raw sudo command using password
+      shell: |
+        echo "{{ ansible_password }}" | sudo -S id
+      register: sudo_test
+      ignore_errors: yes
+
+    - name: Show diagnostic output
+      debug:
+        msg: 
+          - "Host: {{ inventory_hostname }}"
+          - "Stdout: {{ sudo_test.stdout }}"
+          - "Stderr: {{ sudo_test.stderr }}"
+          - "RC: {{ sudo_test.rc }}"
+...

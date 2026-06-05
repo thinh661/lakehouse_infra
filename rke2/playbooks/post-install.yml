@@ -1,0 +1,91 @@
+---
+- name: Fetch Kubeconfig from first server node
+  hosts: rke2_first_server
+  become: yes
+  tasks:
+    - name: Read Kubeconfig file on First Server
+      slurp:
+        src: /etc/rancher/rke2/rke2.yaml
+      register: kubeconfig_raw
+
+- name: Set up Admin Client on Bastion Node
+  hosts: bastion
+  become: yes
+  tasks:
+    - name: Download stable kubectl binary
+      get_url:
+        url: "https://dl.k8s.io/release/{{ rke2_version.split('+')[0] }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+
+    - name: Create .kube directory for thinh1 user
+      file:
+        path: /home/thinh1/.kube
+        state: directory
+        owner: thinh1
+        group: thinh1
+        mode: '0700'
+
+    - name: Create .kube directory for root user
+      file:
+        path: /root/.kube
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+
+    - name: Copy kubeconfig to thinh1 user profile
+      copy:
+        content: "{{ hostvars[groups['rke2_first_server'][0]]['kubeconfig_raw']['content'] | b64decode }}"
+        dest: /home/thinh1/.kube/config
+        owner: thinh1
+        group: thinh1
+        mode: '0600'
+
+    - name: Copy kubeconfig to root user profile
+      copy:
+        content: "{{ hostvars[groups['rke2_first_server'][0]]['kubeconfig_raw']['content'] | b64decode }}"
+        dest: /root/.kube/config
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Replace loopback IP with Load Balancer IP in thinh1 kubeconfig
+      replace:
+        path: /home/thinh1/.kube/config
+        regexp: 'https://127.0.0.1:6443'
+        replace: "https://{{ loadbalancer_ip }}:6443"
+
+    - name: Replace loopback IP with Load Balancer IP in root kubeconfig
+      replace:
+        path: /root/.kube/config
+        regexp: 'https://127.0.0.1:6443'
+        replace: "https://{{ loadbalancer_ip }}:6443"
+
+    - name: Export KUBECONFIG for thinh1 user session
+      lineinfile:
+        path: /home/thinh1/.bashrc
+        line: 'export KUBECONFIG=/home/thinh1/.kube/config'
+        create: yes
+        state: present
+        owner: thinh1
+        group: thinh1
+
+    - name: Export KUBECONFIG for root user session
+      lineinfile:
+        path: /root/.bashrc
+        line: 'export KUBECONFIG=/root/.kube/config'
+        create: yes
+        state: present
+        owner: root
+        group: root
+
+    - name: Test cluster connection from Bastion
+      shell: /usr/local/bin/kubectl get nodes
+      register: kubectl_test
+      changed_when: false
+
+    - name: Show cluster status
+      debug:
+        msg: "{{ kubectl_test.stdout_lines }}"
+...

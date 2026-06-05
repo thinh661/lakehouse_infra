@@ -1,0 +1,72 @@
+---
+- name: Prepare OS prerequisites on all nodes
+  hosts: all
+  become: yes
+  tasks:
+    - name: Disable SWAP temporarily
+      command: swapoff -a
+      changed_when: false
+
+    - name: Disable SWAP in fstab (permanently)
+      replace:
+        path: /etc/fstab
+        regexp: '^([^#].*?\bswap\b.*?)$'
+        replace: '# \1'
+
+    - name: Create kernel modules configuration for k8s
+      copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          overlay
+          br_netfilter
+
+    - name: Load overlay module
+      modprobe:
+        name: overlay
+        state: present
+
+    - name: Load br_netfilter module
+      modprobe:
+        name: br_netfilter
+        state: present
+
+    - name: Configure sysctl parameters for k8s
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        sysctl_file: /etc/sysctl.d/k8s.conf
+        reload: yes
+      loop:
+        - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+        - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+        - { name: 'net.ipv4.ip_forward', value: '1' }
+
+    - name: Check if UFW is installed
+      command: which ufw
+      register: ufw_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Allow internal subnet communication in UFW
+      ufw:
+        rule: allow
+        src: 192.168.49.0/24
+      when: ufw_check.rc == 0
+      notify: Reload UFW
+
+    - name: Install required system packages
+      apt:
+        name:
+          - curl
+          - tar
+          - socat
+          - iptables
+          - ca-certificates
+        state: present
+        update_cache: yes
+
+  handlers:
+    - name: Reload UFW
+      ufw:
+        state: reloaded
