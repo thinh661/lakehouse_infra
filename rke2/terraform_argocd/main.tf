@@ -9,6 +9,10 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.13"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -90,7 +94,13 @@ resource "helm_release" "argocd" {
           - /
         pathType: Prefix
         annotations:
-          traefik.ingress.kubernetes.io/router.entrypoints: web
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+          traefik.ingress.kubernetes.io/router.tls: "true"
+        tls:
+          - secretName: ${kubernetes_secret.argocd_tls.metadata[0].name}
+            hosts:
+              - ${var.argocd_domain}
+
 
     repoServer:
       replicas: ${var.argocd_repo_server_replicas}

@@ -1,5 +1,5 @@
 output "argocd_url" {
-  value       = "http://${var.argocd_domain}"
+  value       = "https://${var.argocd_domain}"
   description = "Duong dan truy cap giao dien ArgoCD UI"
 }
 
