@@ -15,7 +15,7 @@ global:
 namespace: cert-manager
 clusterResourceNamespace: cert-manager
 
-replicaCount: 2
+replicaCount: 1
 
 strategy:
   type: RollingUpdate
@@ -55,7 +55,7 @@ prometheus:
     enabled: false
 
 webhook:
-  replicaCount: 2
+  replicaCount: 1
   timeoutSeconds: 30
   strategy:
     type: RollingUpdate
@@ -85,7 +85,7 @@ webhook:
 
 cainjector:
   enabled: true
-  replicaCount: 2
+  replicaCount: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
