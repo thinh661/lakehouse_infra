@@ -1,0 +1,96 @@
+# Production-oriented baseline for Longhorn on the RKE2 lakehouse cluster.
+# Host storage is prepared separately: /dev/sdb -> /var/lib/longhorn on each RKE2 server.
+
+global:
+  imageRegistry: ""
+  timezone: Asia/Ho_Chi_Minh
+
+networkPolicies:
+  enabled: false
+  type: rke2
+
+service:
+  ui:
+    type: ClusterIP
+  manager:
+    type: ClusterIP
+
+persistence:
+  createStorageClass: true
+  defaultClass: true
+  defaultFsType: ext4
+  defaultClassReplicaCount: 3
+  defaultDataLocality: disabled
+  reclaimPolicy: Delete
+  volumeBindingMode: WaitForFirstConsumer
+  dataEngine: v1
+
+preUpgradeChecker:
+  jobEnabled: false
+  upgradeVersionCheck: false
+
+csi:
+  kubeletRootDir: /var/lib/kubelet
+  attacherReplicaCount: 3
+  provisionerReplicaCount: 3
+  resizerReplicaCount: 3
+  snapshotterReplicaCount: 3
+
+defaultSettings:
+  createDefaultDiskLabeledNodes: true
+  defaultDataPath: /var/lib/longhorn
+  defaultReplicaCount: '{"v1":"3","v2":"3"}'
+  replicaSoftAntiAffinity: false
+  replicaDiskSoftAntiAffinity: true
+  replicaAutoBalance: best-effort
+  storageOverProvisioningPercentage: 100
+  storageMinimalAvailablePercentage: 25
+  storageReservedPercentageForDefaultDisk: 10
+  upgradeChecker: false
+  allowCollectingLonghornUsageMetrics: false
+  kubernetesMetricsServerMetricsEnabled: false
+  defaultDataLocality: disabled
+  v1DataEngine: true
+  v2DataEngine: false
+  deletingConfirmationFlag: false
+
+defaultBackupStore:
+  backupTarget: ""
+  backupTargetCredentialSecret: ""
+  pollInterval: 300
+
+longhornManager:
+  priorityClass: longhorn-critical
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+longhornDriver:
+  priorityClass: longhorn-critical
+
+longhornUI:
+  replicas: 2
+  priorityClass: longhorn-critical
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  host: longhorn.lakehouse.local
+  tls: true
+  tlsSecret: longhorn-ui-tls
+  path: /
+  pathType: ImplementationSpecific
+  annotations:
+    cert-manager.io/cluster-issuer: lakehouse-ca
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+
+metrics:
+  serviceMonitor:
+    enabled: false
+
+enablePSP: false

@@ -1,0 +1,21 @@
+# Longhorn Module Rules
+
+Module này quản lý Longhorn bằng GitOps/ArgoCD cho cụm RKE2 lakehouse.
+
+Ngữ cảnh cụm:
+* RKE2 hiện tại: `v1.36.1+rke2r2`.
+* Node storage: `rke2_server_1`, `rke2_server_2`, `rke2_server_3` đều có disk rời `/dev/sdb` dung lượng 20GB, chưa mount.
+* Ingress controller: Traefik mặc định của RKE2.
+* Domain nội bộ: `*.lakehouse.local`, trỏ về Bastion/HAProxy `192.168.49.144`.
+* cert-manager cung cấp `ClusterIssuer` tên `lakehouse-ca`.
+
+Quy tắc Longhorn:
+* Cài Longhorn bằng ArgoCD Application riêng, không dùng Helm CLI để install/upgrade trực tiếp vào cluster.
+* Helm chart phải được vendor trong Git tại `rke2/longhorn/charts/longhorn-1.12.0`.
+* Runtime offline vẫn cần preload/mirror tất cả image Longhorn/CSI, không chỉ vendor chart.
+* Longhorn V1 data engine dùng filesystem path. Raw disk `/dev/sdb` phải được format/mount trước vào `/var/lib/longhorn`; Helm chart không tự format/mount disk host.
+* Playbook `playbooks/prepare-longhorn-disks.yml` chuẩn bị `/dev/sdb -> /var/lib/longhorn` trên group `rke2_servers`; chỉ chạy format khi truyền `-e longhorn_format_disk=true`.
+* `values-production.yaml` đặt `defaultSettings.defaultDataPath: /var/lib/longhorn` và `createDefaultDiskLabeledNodes: true`; cần label các node `node.longhorn.io/create-default-disk=true` trước hoặc ngay sau khi deploy.
+* RWX PVC được Longhorn phục vụ qua share-manager/NFS; host prep phải cài `nfs-common`, offline image list phải có `longhornio/longhorn-share-manager:v1.12.0`, và test manifest nên dùng `ReadWriteMany`.
+* Longhorn UI dùng host `longhorn.lakehouse.local`, Traefik ingress, cert-manager issuer `lakehouse-ca`, TLS secret `longhorn-ui-tls`.
+* Longhorn `1.12.0` chart khai báo `kubeVersion: >=1.25.0-0`, tương thích với RKE2/Kubernetes 1.36 theo chart constraint.

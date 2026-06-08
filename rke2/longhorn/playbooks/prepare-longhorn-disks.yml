@@ -1,0 +1,106 @@
+---
+- name: Prepare Longhorn data disks on RKE2 servers
+  hosts: rke2_servers
+  become: true
+  gather_facts: true
+  vars:
+    longhorn_disk_device: /dev/sdb
+    longhorn_disk_mount: /var/lib/longhorn
+    longhorn_disk_fstype: ext4
+    longhorn_format_disk: false
+
+  tasks:
+    - name: Install Longhorn host dependencies
+      ansible.builtin.apt:
+        name:
+          - open-iscsi
+          - nfs-common
+          - e2fsprogs
+          - util-linux
+        state: present
+        update_cache: true
+
+    - name: Enable and start iSCSI service
+      ansible.builtin.service:
+        name: iscsid
+        enabled: true
+        state: started
+
+    - name: Check Longhorn disk device
+      ansible.builtin.stat:
+        path: "{{ longhorn_disk_device }}"
+      register: longhorn_disk_stat
+
+    - name: Fail when Longhorn disk device is missing
+      ansible.builtin.fail:
+        msg: "{{ longhorn_disk_device }} does not exist on {{ inventory_hostname }}"
+      when: not longhorn_disk_stat.stat.exists
+
+    - name: Read current filesystem on Longhorn disk
+      ansible.builtin.command: "blkid -o value -s TYPE {{ longhorn_disk_device }}"
+      register: longhorn_disk_blkid
+      changed_when: false
+      failed_when: false
+
+    - name: Stop when disk is unformatted and formatting is not explicitly allowed
+      ansible.builtin.fail:
+        msg: >-
+          {{ longhorn_disk_device }} has no filesystem on {{ inventory_hostname }}.
+          Re-run with -e longhorn_format_disk=true if this is the intended empty 20GB Longhorn disk.
+      when:
+        - longhorn_disk_blkid.rc != 0
+        - not longhorn_format_disk | bool
+
+    - name: Stop when disk has an unexpected filesystem
+      ansible.builtin.fail:
+        msg: >-
+          {{ longhorn_disk_device }} already has filesystem {{ longhorn_disk_blkid.stdout }} on {{ inventory_hostname }}.
+          Expected {{ longhorn_disk_fstype }}. Inspect the disk manually before continuing.
+      when:
+        - longhorn_disk_blkid.rc == 0
+        - longhorn_disk_blkid.stdout != longhorn_disk_fstype
+
+    - name: Create filesystem on Longhorn disk when explicitly allowed
+      ansible.builtin.command: "mkfs.{{ longhorn_disk_fstype }} -F {{ longhorn_disk_device }}"
+      when:
+        - longhorn_disk_blkid.rc != 0
+        - longhorn_format_disk | bool
+
+    - name: Create Longhorn data directory
+      ansible.builtin.file:
+        path: "{{ longhorn_disk_mount }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Get Longhorn disk UUID
+      ansible.builtin.command: "blkid -o value -s UUID {{ longhorn_disk_device }}"
+      register: longhorn_disk_uuid
+      changed_when: false
+
+    - name: Persist Longhorn mount in fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '^UUID=.*\s+{{ longhorn_disk_mount | regex_escape() }}\s+'
+        line: "UUID={{ longhorn_disk_uuid.stdout }} {{ longhorn_disk_mount }} {{ longhorn_disk_fstype }} defaults,noatime 0 2"
+        state: present
+
+    - name: Check whether Longhorn disk is already mounted
+      ansible.builtin.command: "mountpoint -q {{ longhorn_disk_mount }}"
+      register: longhorn_mountpoint
+      changed_when: false
+      failed_when: false
+
+    - name: Mount Longhorn disk
+      ansible.builtin.command: "mount {{ longhorn_disk_mount }}"
+      when: longhorn_mountpoint.rc != 0
+
+    - name: Verify Longhorn mount
+      ansible.builtin.command: "findmnt --noheadings --output SOURCE,TARGET,FSTYPE {{ longhorn_disk_mount }}"
+      register: longhorn_mount_result
+      changed_when: false
+
+    - name: Show Longhorn mount result
+      ansible.builtin.debug:
+        var: longhorn_mount_result.stdout

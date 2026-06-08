@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: longhorn-test-rwx-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: longhorn-test-rwx-writer-a
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+    - name: writer
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - "echo writer-a > /data/writer-a.txt && cat /data/writer-a.txt && sleep 3600"
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: longhorn-test-rwx-pvc
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: longhorn-test-rwx-writer-b
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+    - name: writer
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - "echo writer-b > /data/writer-b.txt && cat /data/writer-b.txt && sleep 3600"
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: longhorn-test-rwx-pvc
