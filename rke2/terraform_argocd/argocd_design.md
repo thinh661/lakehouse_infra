@@ -1,6 +1,6 @@
 # Tài liệu Thiết kế & Triển khai ArgoCD trên cụm RKE2 HA
 
-Tài liệu này mô tả chi tiết kiến trúc, luồng đi của mạng (Network Traffic Flow), thiết kế cấu hình và hướng dẫn triển khai **ArgoCD** lên cụm RKE2 HA bằng **Terraform**.
+Tài liệu này mô tả chi tiết kiến trúc, luồng đi của mạng (Network Traffic Flow), thiết kế cấu hình HTTPS và hướng dẫn triển khai **ArgoCD** lên cụm RKE2 HA bằng **Terraform**.
 
 ---
 
@@ -16,35 +16,37 @@ Thay vì sử dụng các câu lệnh `kubectl apply` thủ công hoặc cài đ
 
 ## 2. Kiến trúc & Luồng đi của Traffic (Network Traffic Flow)
 
-Do cụm RKE2 được dựng dưới dạng High Availability (HA) và sử dụng **Traefik** làm Ingress Controller mặc định, luồng đi của request từ máy tính Windows của bạn đến giao diện ArgoCD UI được thiết kế như sau:
+Do cụm RKE2 được dựng dưới dạng High Availability (HA) và sử dụng **Traefik** làm Ingress Controller mặc định, luồng đi của request HTTPS từ máy tính Windows của bạn đến giao diện ArgoCD UI được thiết kế như sau:
 
 ```mermaid
 graph TD
-    Client[Máy Windows Client<br>Domain: argocd.lakehouse.local] -->|1. HTTP Port 80| Bastion[Bastion Node<br>192.168.49.144 / HAProxy]
-    Bastion -->|2. TCP Balance Port 80| RKE2_Nodes{RKE2 Servers<br>Port 80}
+    Client[Máy Windows Client<br>Domain: argocd.lakehouse.local] -->|1. HTTPS Port 443| Bastion[Bastion Node<br>192.168.49.144 / HAProxy]
+    Bastion -->|2. TCP Balance Port 443| RKE2_Nodes{RKE2 Servers<br>Port 443}
     RKE2_Nodes -->|rke2-node1| Node1[rke2-node1<br>192.168.49.141]
     RKE2_Nodes -->|rke2-node2| Node2[rke2-node2<br>192.168.49.142]
     RKE2_Nodes -->|rke2-node3| Node3[rke2-node3<br>192.168.49.143]
     
-    Node1 & Node2 & Node3 -->|3. Traefik Ingress Controller| Traefik[Traefik Ingress<br>Matches Host Header]
-    Traefik -->|4. HTTP Port 8080| ArgoCDService[ArgoCD Server Service]
+    Node1 & Node2 & Node3 -->|3. Traefik websecure EntryPoint| Traefik[Traefik Ingress<br>Matches Host Header<br>Terminates TLS]
+    Traefik -->|4. HTTP Port 8080 trong cụm| ArgoCDService[ArgoCD Server Service]
     ArgoCDService -->|5. HTTP Port 8080| ArgoCDPod[ArgoCD Server Pod<br>Chế độ --insecure]
 ```
 
 ### Chi tiết luồng xử lý:
-1.  **Phân giải Tên miền:** Client truy cập `http://argocd.lakehouse.local`. Máy Windows sử dụng file `hosts` để phân giải tên miền này về IP của **Bastion Node** (`192.168.49.144`).
-2.  **Cân bằng tải HAProxy:** HAProxy trên Bastion nhận request ở cổng `80`, thực hiện cân bằng tải TCP ở tầng L4 và chuyển tiếp request tới cổng `80` của một trong ba node RKE2 Server (`192.168.49.141`, `192.168.49.142`, `192.168.49.143`).
-3.  **Điều hướng Traefik Ingress:** Trên các node RKE2, **Traefik** đang lắng nghe ở cổng `80` host. Nó đọc `Host Header` (`argocd.lakehouse.local`), đối chiếu với cấu hình Kubernetes Ingress của ArgoCD và chuyển tiếp traffic tới Service của ArgoCD.
-4.  **Chế độ Insecure (SSL Termination):** Traefik đóng vai trò xử lý/kết thúc các kết nối từ ngoài vào. Bên trong cụm, nó gọi ArgoCD Server Service bằng giao thức HTTP thông thường (cổng `8080`). Để tránh lỗi lặp vòng chuyển hướng (`ERR_TOO_MANY_REDIRECTS`) do ArgoCD mặc định tự chuyển sang HTTPS, chúng ta cấu hình ArgoCD Server khởi chạy với cờ `--insecure`.
+1.  **Phân giải Tên miền:** Client truy cập `https://argocd.lakehouse.local`. Máy Windows sử dụng file `hosts` để phân giải tên miền này về IP của **Bastion Node** (`192.168.49.144`).
+2.  **Cân bằng tải HAProxy:** HAProxy trên Bastion nhận request ở cổng `443`, thực hiện cân bằng tải TCP ở tầng L4 và chuyển tiếp request tới cổng `443` của một trong ba node RKE2 Server (`192.168.49.141`, `192.168.49.142`, `192.168.49.143`). HAProxy không giải mã TLS, chỉ chuyển tiếp TCP.
+3.  **Điều hướng Traefik Ingress:** Trên các node RKE2, **Traefik** đang lắng nghe entrypoint `websecure` ở cổng `443`. Nó đọc cấu hình Ingress của ArgoCD, dùng chứng chỉ TLS từ Secret `argocd-server-tls`, đối chiếu Host `argocd.lakehouse.local` và chuyển tiếp traffic tới Service của ArgoCD.
+4.  **TLS Termination tại Traefik:** Terraform tạo chứng chỉ tự ký (self-signed) cho `argocd.lakehouse.local` và lưu vào Kubernetes Secret `argocd-server-tls`. Traefik dùng Secret này để terminate HTTPS ở rìa cụm.
+5.  **Chế độ Insecure bên trong cụm:** Sau khi TLS đã được terminate ở Traefik, request nội bộ từ Traefik đến ArgoCD Server Service đi bằng HTTP thông thường qua cổng `8080`. Vì vậy ArgoCD Server được cấu hình `server.insecure: "true"` để tránh lỗi lặp vòng chuyển hướng HTTPS (`ERR_TOO_MANY_REDIRECTS`).
 
 ---
 
 ## 3. Cấu trúc Thư mục Terraform
 
-Thư mục chứa mã nguồn triển khai nằm tại: `d:/workspace_thinh1/lakehouse/rke2/terraform_argocd/`
-*   [variables.tf](file:///d:/workspace_thinh1/lakehouse/rke2/terraform_argocd/variables.tf): Khai báo các biến tùy chỉnh (Kubeconfig path, Chart version, Domain).
-*   [main.tf](file:///d:/workspace_thinh1/lakehouse/rke2/terraform_argocd/main.tf): Cấu hình Kubernetes + Helm Providers, khởi tạo Namespace `argocd`, và deploy Helm chart ArgoCD đi kèm cấu hình Ingress Traefik.
-*   [outputs.tf](file:///d:/workspace_thinh1/lakehouse/rke2/terraform_argocd/outputs.tf): Xuất ra URL truy cập và câu lệnh mẫu để lấy mật khẩu admin khởi tạo.
+Thư mục chứa mã nguồn triển khai nằm tại: `rke2/terraform_argocd/`
+*   [variables.tf](variables.tf): Khai báo các biến tùy chỉnh (Kubeconfig path, Chart version, Domain).
+*   [main.tf](main.tf): Cấu hình Kubernetes + Helm Providers, khởi tạo Namespace `argocd`, và deploy Helm chart ArgoCD đi kèm Ingress Traefik `websecure`.
+*   [tls.tf](tls.tf): Tạo chứng chỉ TLS tự ký cho domain ArgoCD và lưu vào Kubernetes Secret `argocd-server-tls`.
+*   [outputs.tf](outputs.tf): Xuất ra URL HTTPS truy cập và câu lệnh mẫu để lấy mật khẩu admin khởi tạo.
 
 ---
 
@@ -91,7 +93,7 @@ terraform plan
 # 3. Tiến hành triển khai lên cụm RKE2
 terraform apply
 ```
-*Gõ `yes` khi được xác nhận.* Hệ thống sẽ tự động tạo namespace `argocd`, tải và cài đặt ArgoCD Helm Chart phiên bản `9.5.17` (tương ứng với ArgoCD v3.4.x - phiên bản mới nhất hoàn toàn phù hợp với Kubernetes v1.36 trên RKE2), đồng thời tạo Ingress định hướng qua Traefik.
+*Gõ `yes` khi được xác nhận.* Hệ thống sẽ tự động tạo namespace `argocd`, tạo TLS Secret `argocd-server-tls`, tải và cài đặt ArgoCD Helm Chart phiên bản `9.5.17` (tương ứng với ArgoCD v3.4.x - phiên bản mới nhất hoàn toàn phù hợp với Kubernetes v1.36 trên RKE2), đồng thời tạo Ingress HTTPS định hướng qua Traefik.
 
 ### Bước 4: Lấy mật khẩu Admin khởi tạo của ArgoCD
 Sau khi `terraform apply` hoàn thành xuất sắc, chạy lệnh sau để lấy mật khẩu đăng nhập lần đầu tiên:
@@ -113,8 +115,8 @@ Hãy lưu lại chuỗi ký tự mật khẩu này.
 
 ## 5. Truy cập & Kiểm tra
 
-1.  Mở trình duyệt web trên máy Windows và truy cập địa chỉ: `http://argocd.lakehouse.local`
-2.  Giao diện đăng nhập ArgoCD sẽ hiển thị trực quan và mượt mà.
+1.  Mở trình duyệt web trên máy Windows và truy cập địa chỉ: `https://argocd.lakehouse.local`
+2.  Vì chứng chỉ TLS hiện là self-signed certificate nội bộ, trình duyệt có thể hiển thị cảnh báo bảo mật. Chọn tiếp tục truy cập để vào giao diện đăng nhập ArgoCD.
 3.  Nhập thông tin tài khoản:
     *   **Username:** `admin`
     *   **Password:** *(Chuỗi mật khẩu lấy được ở Bước 4)*
@@ -153,7 +155,7 @@ Mã nguồn Terraform đã cấu hình sẵn mức giới hạn tài nguyên an 
 ### 8.2. Cấu hình High Availability (HA)
 Mặc định, hệ thống đang cài đặt ở chế độ **tối thiểu (Non-HA - 1 replica)** nhằm tiết kiệm RAM tối đa cho các node ảo hóa (mỗi node chỉ có 6GB RAM). 
 
-Nếu muốn nâng cấp lên mô hình sản xuất **High Availability (HA)** để phân phối tải đều ra 3 node RKE2 Server (Active-Active), bạn chỉ cần sửa các biến cấu hình trong [variables.tf](file:///d:/workspace_thinh1/lakehouse/rke2/terraform_argocd/variables.tf) hoặc truyền trực tiếp qua CLI khi apply:
+Nếu muốn nâng cấp lên mô hình sản xuất **High Availability (HA)** để phân phối tải đều ra 3 node RKE2 Server (Active-Active), bạn chỉ cần sửa các biến cấu hình trong [variables.tf](variables.tf) hoặc truyền trực tiếp qua CLI khi apply:
 
 #### Cách cấu hình trong `variables.tf`:
 ```hcl
