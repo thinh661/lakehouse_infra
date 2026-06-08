@@ -1,0 +1,37 @@
+# Workspace Rules & Context: cert-manager for RKE2 Lakehouse
+
+File này cung cấp ngữ cảnh nhanh cho AI Assistant khi làm việc trong thư mục `rke2/cert_manager`, nhằm tránh hỏi lại các quyết định nền tảng và giữ tài liệu nhất quán với cụm RKE2 hiện tại.
+
+## 1. Vai trò trong Lakehouse Infra
+`cert-manager` là thành phần quản lý vòng đời chứng chỉ TLS cho các ứng dụng chạy trong cụm RKE2 HA. Nó tạo và gia hạn Kubernetes TLS Secret để Traefik Ingress dùng cho HTTPS.
+
+Thứ tự bootstrap khuyến nghị:
+1.  RKE2 HA Cluster bằng Ansible.
+2.  ArgoCD bằng Terraform.
+3.  cert-manager bằng ArgoCD Application, dùng Helm chart đã vendor trong Git repo.
+4.  Longhorn Storage.
+5.  Các ứng dụng lakehouse như Kafka, Airflow, MinIO, Trino, Superset, Rancher, v.v.
+
+## 2. Hạ tầng hiện tại
+*   Cụm RKE2: `v1.36.1+rke2r2`.
+*   Bastion / HAProxy: `192.168.49.144`.
+*   RKE2 server nodes: `192.168.49.141`, `192.168.49.142`, `192.168.49.143`.
+*   Ingress Controller: Traefik mặc định của RKE2, dùng entrypoint `websecure` cho HTTPS port `443`.
+*   Local domain pattern: `*.lakehouse.local` trỏ về Bastion IP `192.168.49.144` trong file hosts hoặc DNS nội bộ.
+
+## 3. Phiên bản và nguồn Helm Chart
+*   cert-manager version mục tiêu: `v1.20.2`.
+*   Nguồn upstream để pull chart: OCI registry `oci://quay.io/jetstack/charts/cert-manager`.
+*   Nguồn ArgoCD dùng khi sync: chart đã vendor trong Git tại `rke2/cert_manager/charts/cert-manager-v1.20.2`.
+*   ArgoCD Application chính: `argocd-application.yaml`.
+*   Khi cài bằng ArgoCD/Helm chart phải bật CRD bằng `crds.enabled=true` trong Helm values.
+*   Không cài cert-manager như subchart của app khác. cert-manager là cluster-level component và chỉ nên cài đúng một lần trong cụm.
+
+## 4. Production Rules
+*   cert-manager không cần PVC cho hoạt động thông thường, nên có thể cài trước Longhorn.
+*   Không xóa CRD cert-manager nếu chưa backup và chưa hiểu tác động, vì xóa CRD sẽ xóa Issuer, ClusterIssuer, Certificate, Order, Challenge.
+*   Với domain nội bộ `*.lakehouse.local`, Let's Encrypt public không cấp certificate trực tiếp nếu domain không public/DNS không được kiểm soát công khai. Dùng private CA/self-signed CA cho lab nội bộ, hoặc dùng domain thật với DNS-01 challenge cho production public.
+*   Traefik terminate HTTPS bằng Secret do cert-manager tạo; backend app có thể dùng HTTP nội bộ nếu phù hợp.
+*   ArgoCD là công cụ quản lý trạng thái cert-manager; không dùng `helm upgrade --install` hoặc `helm rollback` trên Bastion cho release này trừ tình huống break-glass.
+*   Phải `helm pull --untar` chart trên máy có Internet rồi commit vào repo trước khi sync nếu cluster không có Internet.
+*   Ưu tiên lưu Application, values, và manifest Issuer/ClusterIssuer trong Git để có thể tái dựng cụm.
