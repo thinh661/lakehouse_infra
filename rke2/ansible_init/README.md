@@ -107,3 +107,17 @@ kubectl get pods -A
 ``` sudo rke2 certificate rotate ```
 
 ``` sudo systemctl start rke2-server ```
+
+## Restart node 
+``` 
+sudo pkill -9 -f containerd-shim
+sudo pkill -9 -f rke2
+sudo pkill -9 -f containerd
+
+sudo systemctl reset-failed rke2-server
+sudo systemctl daemon-reload
+
+sudo systemctl start rke2-server
+
+sudo systemctl status rke2-server
+```
