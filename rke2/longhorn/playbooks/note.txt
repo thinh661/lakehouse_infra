@@ -1,0 +1,6 @@
+chmod +x prepare-longhorn.sh
+
+sudo LONGHORN_FORMAT_DISK=true ./prepare-longhorn.sh
+
+
+lsblk -f
