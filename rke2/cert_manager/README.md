@@ -172,14 +172,14 @@ Mở [argocd-application.yaml](argocd-application.yaml) và sửa `repoURL` về
 
 ```yaml
 sources:
-  - repoURL: https://github.com/CHANGE_ME/lakehouse_infra.git
+  - repoURL: https://github.com/thinh661/lakehouse_infra.git
     targetRevision: main
     path: rke2/cert_manager/charts/cert-manager-v1.20.2
     helm:
       releaseName: cert-manager
       valueFiles:
         - $values/rke2/cert_manager/values-production.yaml
-  - repoURL: https://github.com/CHANGE_ME/lakehouse_infra.git
+  - repoURL: https://github.com/thinh661/lakehouse_infra.git
     targetRevision: main
     ref: values
 ```
@@ -269,9 +269,9 @@ metadata:
     argocd.argoproj.io/secret-type: repository
 stringData:
   type: git
-  url: https://github.com/CHANGE_ME/lakehouse_infra.git
-  username: CHANGE_ME
-  password: CHANGE_ME_TOKEN
+  url: https://github.com/thinh661/lakehouse_infra.git
+  username: thinh661
+  password: password
 EOF
 
 kubectl apply -f argocd-lakehouse-repo.yaml
