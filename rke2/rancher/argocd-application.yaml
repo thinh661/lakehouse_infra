@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rancher
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      path: rke2/rancher/charts/charts/rancher-2.14.2
+      helm:
+        releaseName: rancher
+        valueFiles:
+          - $values/rke2/rancher/values-production.yaml
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cattle-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: networking.k8s.io
+      kind: Ingress
+      jsonPointers:
+        - /metadata/annotations/cert-manager.io~1issuer
+        - /metadata/annotations/cert-manager.io~1cluster-issuer

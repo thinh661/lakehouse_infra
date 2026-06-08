@@ -1,0 +1,58 @@
+# Production-oriented baseline for Rancher on the RKE2 lakehouse cluster.
+# Current compatibility note: Rancher chart 2.14.2 declares kubeVersion < 1.36.0-0,
+# so do not deploy to RKE2/Kubernetes 1.36.1 until Rancher publishes support.
+
+hostname: rancher.lakehouse.local
+
+replicas: 1
+
+bootstrapPassword: ""
+
+networkExposure:
+  type: ingress
+
+ingress:
+  enabled: true
+  includeDefaultExtraAnnotations: false
+  ingressClassName: traefik
+  path: /
+  pathType: ImplementationSpecific
+  servicePort: 80
+  tls:
+    source: secret
+    secretName: tls-rancher-ingress
+  extraAnnotations:
+    cert-manager.io/cluster-issuer: lakehouse-ca
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+
+privateCA: true
+
+agentTLSMode: strict
+
+systemDefaultRegistry: ""
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+
+antiAffinity: preferred
+
+topologyKey: kubernetes.io/hostname
+
+auditLog:
+  enabled: true
+  level: 1
+  destination: sidecar
+  maxAge: 1
+  maxBackup: 1
+  maxSize: 100
+
+global:
+  cattle:
+    psp:
+      enabled: false

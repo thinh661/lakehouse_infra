@@ -1,0 +1,20 @@
+# Rancher Module Rules
+
+Module này quản lý Rancher bằng GitOps/ArgoCD cho cụm RKE2 lakehouse.
+
+Ngữ cảnh cụm:
+* RKE2 hiện tại: `v1.36.1+rke2r2`.
+* Ingress controller: Traefik mặc định của RKE2.
+* Domain nội bộ: `*.lakehouse.local`, trỏ về Bastion/HAProxy `192.168.49.144`.
+* cert-manager được quản lý ở `rke2/cert_manager` và cung cấp `ClusterIssuer` tên `lakehouse-ca`.
+
+Quy tắc Rancher:
+* Cài Rancher bằng ArgoCD Application riêng, không cài bằng Helm CLI trực tiếp vào cluster.
+* Helm chart hiện đang được vendor trong Git tại `rke2/rancher/charts/charts/rancher-2.14.2` để cluster không cần Internet khi sync.
+* Dùng chart Rancher latest channel `https://releases.rancher.com/server-charts/latest` khi cần phiên bản mới nhất.
+* Không commit bootstrap password, token, kubeconfig hoặc private key vào Git.
+* Rancher hostname mặc định cho lab: `rancher.lakehouse.local`.
+* TLS cho Rancher dùng cert-manager qua `ClusterIssuer` `lakehouse-ca`, tạo Secret `tls-rancher-ingress` trong namespace `cattle-system`.
+* Vì certificate do CA nội bộ ký, đặt `privateCA: true` và tạo Secret `tls-ca` trong `cattle-system` chứa root CA để Rancher agents trust endpoint.
+* Trước khi deploy thật phải kiểm tra chart `kubeVersion`. Rancher `2.14.2` khai báo `kubeVersion: < 1.36.0-0`, nên chưa support chính thức RKE2/Kubernetes `1.36.1`.
+* Với môi trường offline, chart trong Git chưa đủ; node hoặc private registry nội bộ phải có image Rancher và các image hệ thống Rancher yêu cầu.
