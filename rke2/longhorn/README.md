@@ -178,3 +178,37 @@ Quy trình upgrade:
 5. Commit/push rồi sync ArgoCD.
 
 Rollback cần đọc tài liệu Longhorn cho version cụ thể. Storage system có state trên disk, vì vậy không rollback chart bừa khi đã có volume quan trọng.
+
+## 9. Gỡ Longhorn triệt để 
+
+``` kubectl get ns longhorn-system -o json | jq '.spec.finalizers = []' | kubectl replace --raw "/api/v1/namespaces/longhorn-system/finalize" -f - ```
+
+``` kubectl delete sc longhorn-static -n longhorn-system ```
+
+``` kubectl delete validatingwebhookconfigurations validator.longhorn.io ```
+
+``` kubectl delete mutatingwebhookconfigurations mutator.longhorn.io ```
+
+## 10. Giải phóng Argoc bị treo sync network ingress
+
+```
+# Cancel operation đang treo
+kubectl patch application longhorn -n argocd --type=merge -p '{"operation": null}'
+kubectl patch application longhorn -n argocd --type=merge -p '
+{
+  "metadata": {
+    "finalizers": null
+  }
+}'
+# Refresh application
+kubectl patch application longhorn -n argocd --type=merge -p '{"spec": {"refresh": true}}'
+# cach manh tay
+kubectl delete application longhorn -n argocd --grace-period=0 --force
+```
+
+## 11. Fix lỗi syncing ingress : 
+``` kubectl patch configmap argocd-cm -n argocd --type merge -p '{
+  "data": {
+    "resource.customizations.health.networking.k8s.io_Ingress": "hs = {}\nhs.status = \"Healthy\"\nhs.message = \"Ingress is healthy\"\nreturn hs\n"
+  }
+}' ```

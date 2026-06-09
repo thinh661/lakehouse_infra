@@ -106,11 +106,11 @@ resource "helm_release" "argocd" {
       replicas: ${var.argocd_repo_server_replicas}
       resources:
         limits:
+          cpu: 2000m
+          memory: 2048Mi
+        requests:
           cpu: 1000m
           memory: 1024Mi
-        requests:
-          cpu: 250m
-          memory: 256Mi
 
     applicationSet:
       replicas: ${var.argocd_ha_enabled ? 2 : 1}
