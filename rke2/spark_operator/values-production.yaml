@@ -5,7 +5,7 @@
 image:
   registry: ghcr.io
   repository: kubeflow/spark-operator/controller
-  tag: "v2.4.0"
+  tag: "2.4.0"
   pullPolicy: IfNotPresent
 
 controller:

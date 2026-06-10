@@ -73,17 +73,17 @@ scp -r d:\workspace_thinh1\lakehouse_infra\lakehouse_infra\rke2 thinh1@192.168.4
 
 Image cần thiết cho Spark Operator v2.4.0:
 ```text
-ghcr.io/kubeflow/spark-operator/controller:v2.4.0
+ghcr.io/kubeflow/spark-operator/controller:2.4.0
 ```
 *(Nếu sau này chạy Spark Application mẫu, bạn cần chuẩn bị thêm Spark base image, ví dụ: `docker.io/apache/spark:3.5.0`)*
 
 Thực hiện đóng gói trên máy có Internet:
 ```bash
-docker pull ghcr.io/kubeflow/spark-operator/controller:v2.4.0
+docker pull ghcr.io/kubeflow/spark-operator/controller:2.4.0
 docker pull docker.io/apache/spark:3.5.0
 
 docker save \
-  ghcr.io/kubeflow/spark-operator/controller:v2.4.0 \
+  ghcr.io/kubeflow/spark-operator/controller:2.4.0 \
   docker.io/apache/spark:3.5.0 \
   -o spark-operator-offline.tar
 ```
