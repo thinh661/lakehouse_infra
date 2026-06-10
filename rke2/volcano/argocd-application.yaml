@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: volcano
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # Source 1: Vendored Volcano Scheduler Helm Chart
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      path: rke2/volcano/charts/volcano-v1.15.0
+      helm:
+        releaseName: volcano
+        valueFiles:
+          - $values/rke2/volcano/values-production.yaml
+    # Source 2: Values Reference
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      ref: values
+    # Source 3: Additional Kubernetes Manifests (Volcano Dashboard UI)
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      path: rke2/volcano/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: volcano-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

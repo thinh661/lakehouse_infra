@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: spark-operator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # Source 1: Vendored Spark Operator Helm Chart
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      path: rke2/spark_operator/charts/spark-operator-v2.4.0
+      helm:
+        releaseName: spark-operator
+        valueFiles:
+          - $values/rke2/spark_operator/values-production.yaml
+    # Source 2: Values Reference
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: spark-operator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

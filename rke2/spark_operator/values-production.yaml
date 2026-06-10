@@ -1,0 +1,117 @@
+# Production values for Spark Operator deployment on RKE2 Lakehouse
+# Chart: kubeflow/spark-operator v2.4.0
+
+# Container Image Configuration
+image:
+  registry: ghcr.io
+  repository: kubeflow/spark-operator/controller
+  tag: "v2.4.0"
+  pullPolicy: IfNotPresent
+
+controller:
+  # Number of controller replicas (single replica with leader election enabled)
+  replicas: 1
+
+  leaderElection:
+    enable: true
+    leaseDuration: 15s
+    renewDeadline: 10s
+    retryPeriod: 2s
+
+  # Concurrency configuration for the reconciler loop
+  workers: 10
+  logLevel: info
+
+  # Enable UI service for the Spark driver web interface
+  uiService:
+    enable: true
+
+  # Integrate with Volcano Batch Scheduler
+  batchScheduler:
+    enable: true
+    # Specify allowed scheduler names
+    kubeSchedulerNames:
+      - default-scheduler
+      - volcano
+    # Make Volcano the default scheduler for all Spark jobs
+    default: "volcano"
+
+  # Resource limits for controller (JVM-based submissions)
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # Security context aligning with best practices
+  podSecurityContext:
+    fsGroup: 185 # default spark user UID
+
+  securityContext:
+    readOnlyRootFilesystem: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+
+webhook:
+  # Enable admission webhook for mutating Spark Pods (required for Spark Operator functionality)
+  enable: true
+  replicas: 1
+
+  # Resource limits for webhook server
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "250m"
+      memory: "256Mi"
+
+  podSecurityContext:
+    fsGroup: 185
+
+  securityContext:
+    readOnlyRootFilesystem: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+
+# Namespace settings for running Spark Applications
+spark:
+  # An empty string in the list enables multi-namespace watching,
+  # allowing SparkApplication resources to be created in any namespace (e.g. jupyter, airflow).
+  jobNamespaces:
+    - ""
+
+  # Create default ServiceAccount for Spark Driver/Executors to run Spark pods
+  serviceAccount:
+    create: true
+    name: "spark-service-account"
+    # Auto-mount service account token
+    automountServiceAccountToken: true
+
+  rbac:
+    create: true
+
+# Enable cert-manager integration to automatically provision webhook certificates
+certManager:
+  enable: true
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: lakehouse-ca
+  # Generate certificate valid for 90 days
+  duration: "2160h"
+  renewBefore: "720h"

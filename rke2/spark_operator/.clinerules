@@ -1,0 +1,36 @@
+# Workspace Rules & Context: Spark Operator for RKE2 Lakehouse
+
+File này cung cấp ngữ cảnh nhanh cho AI Assistant khi làm việc trong thư mục `rke2/spark_operator`, nhằm tránh hỏi lại các quyết định nền tảng và giữ tài liệu nhất quán với cụm RKE2 hiện tại.
+
+## 1. Vai trò trong Lakehouse Infra
+`spark-operator` là thành phần quản trị vòng đời các ứng dụng Apache Spark (Driver và Executors) chạy trên cụm Kubernetes dưới dạng Custom Resources (`SparkApplication` và `ScheduledSparkApplication`). Nó đóng vai trò làm nền tảng xử lý tính toán phân tán cho các công cụ như JupyterHub, Airflow, Trino, v.v.
+
+Thứ tự bootstrap khuyến nghị:
+1.  RKE2 HA Cluster bằng Ansible.
+2.  ArgoCD bằng Terraform.
+3.  cert-manager bằng ArgoCD (cung cấp TLS ClusterIssuer `lakehouse-ca`).
+4.  Longhorn Storage (cung cấp storage class `longhorn`).
+5.  Keycloak (IAM/SSO) bằng ArgoCD.
+6.  Volcano (Batch Scheduler) bằng ArgoCD (cung cấp cơ chế gang scheduling cho Spark).
+7.  Spark Operator bằng ArgoCD (kết nối với Volcano và sử dụng cert-manager cho webhook).
+8.  JupyterHub & Airflow (tích hợp Spark Operator để chạy tính toán).
+
+## 2. Hạ tầng hiện tại
+*   Cụm RKE2: `v1.36.1+rke2r2`.
+*   Bastion / HAProxy: `192.168.49.144`.
+*   RKE2 server nodes: `192.168.49.141`, `192.168.49.142`, `192.168.49.143`.
+*   TLS Certificate cho Webhook: Được sinh tự động bởi cert-manager thông qua `ClusterIssuer: lakehouse-ca` để bảo mật API Webhook của Spark Operator.
+*   Batch Scheduler: Tích hợp với Volcano Scheduler để tối ưu hóa điều phối tài nguyên cho các job tính toán Spark song song (Gang Scheduling).
+
+## 3. Phiên bản và nguồn Helm Chart
+*   Spark Operator version mục tiêu: `v2.4.0` (Kubeflow community).
+*   Nguồn ArgoCD dùng khi sync: chart đã vendor trong Git tại `rke2/spark_operator/charts/spark-operator-v2.4.0`.
+*   ArgoCD Application chính: `argocd-application.yaml`.
+*   Namespace mặc định: `spark-operator`.
+
+## 4. Production Rules
+*   **Thứ tự cài đặt:** Phải cài Volcano trước Spark Operator. Nếu cài Spark Operator trước, vẫn có thể cấu hình sẵn tích hợp Volcano (`controller.batchScheduler.enable=true`), nhưng các SparkApplication yêu cầu Volcano sẽ ở trạng thái `Pending` cho đến khi Volcano được cài đặt và chạy thành công.
+*   **Bảo mật Webhook:** Sử dụng cert-manager để quản lý vòng đời chứng chỉ cho admission webhook của Spark Operator thay vì tự ký thủ công.
+*   **Phạm vi Namespace (Job Namespaces):** Cấu hình `spark.jobNamespaces` hỗ trợ bất kỳ namespace nào (`- ""`) để cho phép người dùng chạy Spark Jobs từ nhiều môi trường (JupyterHub namespace, Airflow namespace, v.v.) thay vì chỉ giới hạn ở namespace default.
+*   **Chế độ High Availability (HA):** Bật Leader Election (`controller.leaderElection.enable=true`) để tránh xung đột điều phối khi nâng số lượng bản sao (replicas) của operator.
+*   **Offline Image:** Preload image `ghcr.io/kubeflow/spark-operator/controller:v2.4.0` lên các node RKE2 cho môi trường offline trước khi sync.

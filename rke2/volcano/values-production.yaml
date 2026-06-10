@@ -1,0 +1,31 @@
+# Production values for Volcano Scheduler deployment on RKE2 Lakehouse
+# Chart: volcano-sh/volcano v1.15.0
+
+basic:
+  # Image Registry settings
+  image_registry: "docker.io"
+  # Override default "Always" to "IfNotPresent" for offline cluster execution
+  image_pull_policy: "IfNotPresent"
+  # Common tag version for scheduler, controller and webhook manager
+  image_tag_version: "v1.15.0"
+  admission_port: 8443
+
+custom:
+  # Enable core components
+  controller_enable: true
+  controller_replicas: 1
+  
+  scheduler_enable: true
+  scheduler_replicas: 1
+  
+  admission_enable: true
+  admission_replicas: 1
+  
+  # Enable Prometheus metrics scraping capabilities
+  metrics_enable: true
+  controller_metrics_enable: true
+  scheduler_metrics_enable: true
+
+  # ValidatingAdmissionPolicy and MutatingAdmissionPolicy settings
+  vap_enable: false
+  map_enable: false
