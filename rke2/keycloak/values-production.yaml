@@ -49,10 +49,10 @@ database:
   existingSecret: keycloak-db-secret
   existingSecretKey: POSTGRES_PASSWORD
 
-# Keycloak Quarkus proxy mode (forwarded for Traefik Ingress)
+# Keycloak Quarkus proxy mode (xforwarded for Traefik Ingress)
 proxy:
   enabled: true
-  mode: forwarded
+  mode: xforwarded
   http:
     enabled: true
 
@@ -76,8 +76,10 @@ resources:
     cpu: "1000m"
     memory: "1024Mi"
 
-# Injecting admin bootstrap credentials from secret
+# Injecting admin bootstrap credentials and hostname
 extraEnv: |
+  - name: KC_HOSTNAME
+    value: "https://keycloak.lakehouse.local"
   - name: KC_BOOTSTRAP_ADMIN_USERNAME
     valueFrom:
       secretKeyRef:
