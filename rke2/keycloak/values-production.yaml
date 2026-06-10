@@ -58,7 +58,7 @@ proxy:
 
 # Path prefix for API compatibility
 http:
-  relativePath: "/auth"
+  relativePath: "/"
 
 # System monitoring
 metrics:
@@ -114,7 +114,7 @@ ingress:
   rules:
     - host: keycloak.lakehouse.local
       paths:
-        - path: /auth
+        - path: /
           pathType: Prefix
   tls:
     - hosts:

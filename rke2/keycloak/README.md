@@ -187,7 +187,7 @@ Khi trạng thái của các Pod chuyển sang `Running` và ArgoCD báo `Synced
 ```
 
 ### 7.2. Đăng nhập Admin Console
-1.  Truy cập: `https://keycloak.lakehouse.local/auth/admin/`
+1.  Truy cập: `https://keycloak.lakehouse.local/admin/`
 2.  Đăng nhập bằng thông tin khởi tạo cấu hình trong `manifests/secrets.yaml`:
     *   **Username:** `admin`
     *   **Password:** `KeycloakAdminPass123!`
@@ -253,13 +253,13 @@ OAUTH_PROVIDERS = [
         'remote_app': {
             'client_id': 'airflow',
             'client_secret': 'SAO_CHEP_SECRET_TU_KEYCLOAK_UI',
-            'api_base_url': 'https://keycloak.lakehouse.local/auth/realms/lakehouse/protocol/openid-connect/',
+            'api_base_url': 'https://keycloak.lakehouse.local/realms/lakehouse/protocol/openid-connect/',
             'client_kwargs': {
                 'scope': 'openid email profile'
             },
-            'access_token_url': 'https://keycloak.lakehouse.local/auth/realms/lakehouse/protocol/openid-connect/token',
-            'authorize_url': 'https://keycloak.lakehouse.local/auth/realms/lakehouse/protocol/openid-connect/auth',
-            'jwks_uri': 'https://keycloak.lakehouse.local/auth/realms/lakehouse/protocol/openid-connect/certs'
+            'access_token_url': 'https://keycloak.lakehouse.local/realms/lakehouse/protocol/openid-connect/token',
+            'authorize_url': 'https://keycloak.lakehouse.local/realms/lakehouse/protocol/openid-connect/auth',
+            'jwks_uri': 'https://keycloak.lakehouse.local/realms/lakehouse/protocol/openid-connect/certs'
         }
     }
 ]
@@ -292,9 +292,9 @@ c.GenericOAuthenticator.oauth_callback_url = 'https://jupyterhub.lakehouse.local
 c.GenericOAuthenticator.client_id = 'jupyterhub'
 c.GenericOAuthenticator.client_secret = 'SAO_CHEP_SECRET_TU_KEYCLOAK_UI'
 
-c.GenericOAuthenticator.authorize_url = 'https://keycloak.lakehouse.local/auth/realms/lakehouse/protocol/openid-connect/auth'
-c.GenericOAuthenticator.token_url = 'https://keycloak.lakehouse.local/auth/realms/lakehouse/protocol/openid-connect/token'
-c.GenericOAuthenticator.userdata_url = 'https://keycloak.lakehouse.local/auth/realms/lakehouse/protocol/openid-connect/userinfo'
+c.GenericOAuthenticator.authorize_url = 'https://keycloak.lakehouse.local/realms/lakehouse/protocol/openid-connect/auth'
+c.GenericOAuthenticator.token_url = 'https://keycloak.lakehouse.local/realms/lakehouse/protocol/openid-connect/token'
+c.GenericOAuthenticator.userdata_url = 'https://keycloak.lakehouse.local/realms/lakehouse/protocol/openid-connect/userinfo'
 
 c.GenericOAuthenticator.username_key = 'preferred_username'
 c.GenericOAuthenticator.userdata_params = {'state': 'state'}

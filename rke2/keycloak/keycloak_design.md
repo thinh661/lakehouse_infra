@@ -36,7 +36,7 @@ RKE2 Node Server (141/142/143)
    v
 Airflow Pod (Nhận thấy chưa có Session)
    |
-   | (4) Redirect sang keycloak.lakehouse.local/auth
+   | (4) Redirect sang keycloak.lakehouse.local
    v
 User Browser (Đăng nhập tại Keycloak Login Page)
    |
@@ -136,7 +136,7 @@ JupyterHub hỗ trợ xác thực OAuth2/OIDC qua package `oauthenticator`. Cấ
 
 *   **JVM Memory Tuning:** Keycloak chạy trên Java Virtual Machine (JVM). Ta cấu hình resource limits cho Keycloak Pod là `1500m CPU` và `2048Mi RAM` để đảm bảo heap memory (`-Xms512m -Xmx1024m` được tự động tối ưu qua biến Quarkus) hoạt động mượt mà.
 *   **Database Check:** Keycloak StatefulSet cấu hình `initContainers.dbchecker` sử dụng `busybox` để ping TCP port `5432` của `keycloak-db` trước khi khởi động. Điều này giúp loại bỏ tình trạng Keycloak CrashLoopBackOff khi database chưa sẵn sàng.
-*   **TLS termination at Ingress:** Traefik terminate TLS dùng SSL Certificate được quản lý tự động bởi cert-manager thông qua ClusterIssuer `lakehouse-ca`. Connection từ Traefik Ingress tới Keycloak Service chạy qua HTTP (Port 8080) để tăng hiệu năng, nhưng Keycloak được cấu hình `proxy: forwarded` và `KC_PROXY_HEADERS: forwarded` để nó hiểu rằng request gốc là HTTPS và sinh URL redirect chính xác.
+*   **TLS termination at Ingress:** Traefik terminate TLS dùng SSL Certificate được quản lý tự động bởi cert-manager thông qua ClusterIssuer `lakehouse-ca`. Connection từ Traefik Ingress tới Keycloak Service chạy qua HTTP (Port 8080) để tăng hiệu năng, nhưng Keycloak được cấu hình `proxy: xforwarded` và `KC_PROXY_HEADERS: xforwarded` để nó hiểu rằng request gốc là HTTPS và sinh URL redirect chính xác.
 *   **Distributed Cache (Infinispan):** Bằng việc sử dụng chart `codecentric/keycloakx` với cấu hình default `cache.stack: default`, Keycloak tự động bật chế độ clustering sử dụng `jdbc-ping` hoặc `dns-ping` để phát hiện các Pod Keycloak lân cận, đồng bộ trạng thái session đăng nhập của người dùng qua mạng.
 
 ---
