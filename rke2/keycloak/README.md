@@ -188,10 +188,32 @@ Khi trạng thái của các Pod chuyển sang `Running` và ArgoCD báo `Synced
 
 ### 7.2. Đăng nhập Admin Console
 1.  Truy cập: `https://keycloak.lakehouse.local/admin/`
-2.  Đăng nhập bằng thông tin khởi tạo cấu hình trong `manifests/secrets.yaml`:
+2.  Đăng nhập bằng thông tin khởi tạo cấu hình tạm thời (Bootstrap credentials) trong `manifests/secrets.yaml`:
     *   **Username:** `admin`
     *   **Password:** `KeycloakAdminPass123!`
-3.  *Lưu ý bảo mật:* Đổi mật khẩu hoặc tạo tài khoản admin vĩnh viễn mới ngay lập tức và lưu thông tin đăng nhập an toàn.
+
+### 7.3. Tạo tài khoản Admin vĩnh viễn (Permanent Admin) và Gỡ bỏ Admin tạm thời
+Keycloak 26 coi thông số admin truyền qua biến môi trường là tài khoản tạm thời. Hãy thực hiện các bước sau để chuyển sang dùng tài khoản vĩnh viễn lưu trong Database:
+
+#### Bước 1: Tạo tài khoản Admin mới
+1.  Đảm bảo đang đứng ở Realm **`master`** (chọn dropdown ở góc trên cùng bên trái màn hình).
+2.  Chọn menu **Users** ở thanh bên trái -> Click **Add user**.
+3.  Nhập **Username** mới của bạn (ví dụ: `sysadmin` hoặc `thinhadmin`) -> Nhấn **Save**.
+4.  Chuyển sang tab **Credentials** của user vừa tạo -> Click **Set password**.
+5.  Nhập mật khẩu mạnh, chuyển nút **Temporary** sang **`OFF`** -> Nhấn **Save** -> Xác nhận **Save password**.
+6.  Chuyển sang tab **Role mapping** của user đó -> Click **Assign role** -> Tìm kiếm và chọn role **`admin`** -> Click **Assign**.
+7.  Mở một tab trình duyệt ẩn danh khác để test thử đăng nhập bằng tài khoản admin mới vừa tạo.
+
+#### Bước 2: Gỡ bỏ tài khoản Admin tạm thời khỏi cấu hình GitOps
+Khi tài khoản admin mới đã hoạt động ổn định, bạn nên xóa tài khoản bootstrap tạm thời để tăng cường bảo mật:
+1.  Mở file [values-production.yaml](values-production.yaml) trên máy Windows của bạn.
+2.  Tại mục `extraEnv`, sửa đổi bằng cách xóa các biến môi trường cấu hình admin tạm thời đi, chỉ giữ lại cấu hình `KC_HOSTNAME`:
+    ```yaml
+    extraEnv: |
+      - name: KC_HOSTNAME
+        value: "https://keycloak.lakehouse.local"
+    ```
+3.  Đồng bộ code lên Bastion, commit push lên Git và đồng bộ qua ArgoCD. Pod Keycloak sẽ rolling update, và tài khoản tạm thời sẽ tự động bị xóa, chỉ giữ lại tài khoản admin vĩnh viễn trong Database.
 
 ---
 
