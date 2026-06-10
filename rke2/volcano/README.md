@@ -38,6 +38,7 @@ rke2/volcano/
   ├── argocd-application.yaml
   └── manifests/
       ├── volcano-dashboard.yaml
+      ├── volcano-grafana-ingress.yaml
       └── queues.yaml
 ```
 
@@ -46,6 +47,7 @@ Vai trò các file:
 *   [volcano.default-values.yaml](volcano.default-values.yaml): Default values gốc của chart để đối chiếu.
 *   [argocd-application.yaml](argocd-application.yaml): Manifest của ArgoCD Application để đồng bộ cụm qua GitOps.
 *   `manifests/volcano-dashboard.yaml`: Manifest của Dashboard UI, bao gồm ServiceAccount, ClusterRole/Binding (đã cấp quyền đọc Nodes), Deployment, Service và Ingress Traefik tích hợp cert-manager.
+*   `manifests/volcano-grafana-ingress.yaml`: Manifest của Grafana Ingress, định nghĩa tên miền `grafana-volcano.lakehouse.local` có SSL/TLS để truy cập giao diện Grafana giám sát.
 *   `manifests/queues.yaml`: Manifest định nghĩa tự động tạo hàng đợi `dev` với giới hạn tài nguyên 1 CPU, 1GiB RAM.
 *   `charts/volcano-v1.15.0/`: Thư mục Helm chart đã được vendor sẵn trong Git repo.
 
@@ -195,6 +197,32 @@ Giao diện của Volcano Dashboard gồm 5 khu vực chính:
         *   **Capacity:** Tổng dung lượng phần cứng CPU, Memory, GPU mà node đang sở hữu.
         *   **Allocated:** Lượng tài nguyên đã được cấp phát cho các Pod đang chạy trên node.
         *   **Tài nguyên còn lại:** Giúp bạn dễ dàng tính toán xem cụm k8s của bạn còn trống bao nhiêu tài nguyên để lập kế hoạch cấp phát hoặc mở rộng node.
+### 7.4. Hướng dẫn truy cập Grafana giám sát Volcano
+Prometheus & Grafana đã được tích hợp sẵn bên trong Helm Chart của Volcano dưới namespace `volcano-system`. Bạn có hai cách để truy cập giao diện Grafana:
+
+**Cách 1: Truy cập qua tên miền Ingress HTTPS (Khuyên dùng)**
+Chúng tôi đã khai báo một Ingress tại [manifests/volcano-grafana-ingress.yaml](manifests/volcano-grafana-ingress.yaml). Bạn thực hiện các bước sau:
+1. Thêm bản ghi DNS/hosts trên máy client (Windows):
+   ```text
+   192.168.49.144 grafana-volcano.lakehouse.local
+   ```
+2. Mở trình duyệt Web Chrome và truy cập:
+   ```text
+   https://grafana-volcano.lakehouse.local/
+   ```
+   *(Trình duyệt sẽ hiển thị chứng chỉ HTTPS hợp lệ do cert-manager nội bộ cấp tự động).*
+
+**Cách 2: Truy cập qua NodePort của Kubernetes**
+Service `grafana` trong namespace `volcano-system` được cấu hình loại `NodePort` với port lắng nghe là `30004`. Bạn có thể truy cập trực tiếp qua IP của bất kỳ node RKE2 nào trong cụm kèm theo port `30004` (không cần cấu hình DNS/hosts):
+*   `http://192.168.49.141:30004` (RKE2 Server Node 1)
+*   `http://192.168.49.142:30004` (RKE2 Server Node 2)
+*   `http://192.168.49.143:30004` (RKE2 Server Node 3)
+
+*Thông tin đăng nhập mặc định:*
+*   **Username:** `admin`
+*   **Password:** `admin` 
+
+Sau khi vào Grafana, di chuyển đến mục **Dashboards** > **Browse** và tìm kiếm từ khóa **"Volcano"** để mở các biểu đồ hiệu năng scheduler được cấu hình sẵn.
 
 ---
 
