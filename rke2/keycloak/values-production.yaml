@@ -1,0 +1,131 @@
+# Production values for Keycloak deployment on RKE2 Lakehouse
+# Chart: codecentric/keycloakx v7.2.0 (AppVersion: 26.6.2)
+
+# High Availability Configuration
+replicas: 2
+
+# Container Image Configuration
+image:
+  repository: quay.io/keycloak/keycloak
+  tag: "26.6.2"
+  pullPolicy: IfNotPresent
+
+# Override command and arguments to auto-import realms at startup
+command: ["/opt/keycloak/bin/kc.sh"]
+args: ["start", "--import-realm"]
+
+# Security context matching rootless container best practices
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+
+# Startup database checker to ensure Postgres is running first
+dbchecker:
+  enabled: true
+  image:
+    repository: docker.io/busybox
+    tag: "1.37"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "20m"
+      memory: "32Mi"
+    limits:
+      cpu: "100m"
+      memory: "64Mi"
+
+# Database Configuration (Postgres StatefulSet)
+database:
+  vendor: postgres
+  hostname: keycloak-db
+  port: 5432
+  database: keycloak
+  username: keycloak
+  existingSecret: keycloak-db-secret
+  existingSecretKey: POSTGRES_PASSWORD
+
+# Keycloak Quarkus proxy mode (forwarded for Traefik Ingress)
+proxy:
+  enabled: true
+  mode: forwarded
+  http:
+    enabled: true
+
+# Path prefix for API compatibility
+http:
+  relativePath: "/auth"
+
+# System monitoring
+metrics:
+  enabled: true
+
+health:
+  enabled: true
+
+# Resource constraints for stable JVM execution
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1024Mi"
+
+# Injecting admin bootstrap credentials from secret
+extraEnv: |
+  - name: KC_BOOTSTRAP_ADMIN_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin-secret
+        key: KC_BOOTSTRAP_ADMIN_USERNAME
+  - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin-secret
+        key: KC_BOOTSTRAP_ADMIN_PASSWORD
+  - name: KEYCLOAK_ADMIN
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin-secret
+        key: KEYCLOAK_ADMIN
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin-secret
+        key: KEYCLOAK_ADMIN_PASSWORD
+
+# Ingress Configuration (Traefik + cert-manager)
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: lakehouse-ca
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # Adjust proxy buffer size to avoid HTTP 502/504 with larger token sizes
+    traefik.ingress.kubernetes.io/router.middlewares: ""
+  rules:
+    - host: keycloak.lakehouse.local
+      paths:
+        - path: /auth
+          pathType: Prefix
+  tls:
+    - hosts:
+        - keycloak.lakehouse.local
+      secretName: keycloak-tls
+
+# Mount the realm import JSON file from ConfigMap
+extraVolumes: |
+  - name: realm-import
+    configMap:
+      name: keycloak-realm-import
+
+extraVolumeMounts: |
+  - name: realm-import
+    mountPath: /opt/keycloak/data/import
+    readOnly: true

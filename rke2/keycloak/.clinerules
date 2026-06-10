@@ -1,0 +1,40 @@
+# Workspace Rules & Context: Keycloak for RKE2 Lakehouse
+
+File này cung cấp ngữ cảnh nhanh cho AI Assistant khi làm việc trong thư mục `rke2/keycloak`, nhằm tránh hỏi lại các quyết định nền tảng và giữ tài liệu nhất quán với cụm RKE2 hiện tại.
+
+## 1. Vai trò trong Lakehouse Infra
+`keycloak` là thành phần quản lý định danh và truy cập (IAM), cung cấp giải pháp Single Sign-On (SSO) và đồng bộ LDAP (User Federation) cho các ứng dụng dữ liệu trong cụm RKE2 HA như Airflow, JupyterHub, Kafka UI, MinIO Console, Trino, Superset, v.v.
+
+Thứ tự bootstrap khuyến nghị:
+1.  RKE2 HA Cluster bằng Ansible.
+2.  ArgoCD bằng Terraform.
+3.  cert-manager bằng ArgoCD (cung cấp TLS ClusterIssuer `lakehouse-ca`).
+4.  Longhorn Storage (cung cấp storage class `longhorn`).
+5.  Keycloak (IAM/SSO) bằng ArgoCD, phụ thuộc vào cert-manager và Longhorn.
+6.  Các ứng dụng dữ liệu tích hợp SSO/LDAP qua Keycloak.
+
+## 2. Hạ tầng hiện tại
+*   Cụm RKE2: `v1.36.1+rke2r2`.
+*   Bastion / HAProxy: `192.168.49.144`.
+*   RKE2 server nodes: `192.168.49.141`, `192.168.49.142`, `192.168.49.143`.
+*   Ingress Controller: Traefik mặc định của RKE2, dùng entrypoint `websecure` cho HTTPS port `443`.
+*   Local domain pattern: `keycloak.lakehouse.local` trỏ về Bastion IP `192.168.49.144`.
+*   TLS Certificate: Tự động cấp phát bởi cert-manager thông qua `ClusterIssuer: lakehouse-ca` và lưu vào Secret `keycloak-tls`.
+
+## 3. Phiên bản và nguồn Helm Chart
+*   Keycloak version mục tiêu: `v26.6.2` (Quarkus-based).
+*   Helm chart sử dụng: `codecentric/keycloakx` phiên bản `7.2.0` (không dùng Bitnami chart).
+*   Nguồn ArgoCD dùng khi sync: chart đã vendor trong Git tại `rke2/keycloak/charts/keycloakx-7.2.0`.
+*   ArgoCD Application chính: `argocd-application.yaml`.
+*   Database đi kèm: PostgreSQL 16 chạy dưới dạng StatefulSet trong cùng namespace `keycloak`, dùng ổ đĩa Longhorn để lưu trữ DB data.
+
+## 4. Production Rules
+*   Keycloak yêu cầu database có persistence. Phải triển khai PostgreSQL với volume `storageClassName: longhorn` trước/song song với Keycloak.
+*   Cấu hình Keycloak chạy ở chế độ Production Mode (`production: true`), bật các tính năng proxy mode (`forwarded` hoặc `edge`) để làm việc đúng với Ingress Controller (Traefik) thực hiện TLS Termination.
+*   Không hardcode password admin hoặc mật khẩu database trong các file YAML công khai. Dùng Kubernetes Secrets để lưu thông tin nhạy cảm.
+*   ArgoCD là công cụ quản lý trạng thái; không dùng Helm CLI trực tiếp trên cụm.
+*   Phải preload/mirror các Docker image cần thiết lên các node RKE2 cho môi trường offline:
+    *   `quay.io/keycloak/keycloak:26.6.2`
+    *   `postgres:16-alpine`
+    *   `docker.io/busybox:1.37` (dùng cho dbchecker)
+*   Quy trình cấu hình SSO/LDAP: Keycloak kết nối tới LDAP làm nguồn định danh tập trung (Read-Only hoặc Read-Write), ánh xạ các Group thành Roles, sau đó các app (Airflow, JupyterHub) dùng OIDC/OAuth2 client để xác thực và phân quyền qua token Keycloak.

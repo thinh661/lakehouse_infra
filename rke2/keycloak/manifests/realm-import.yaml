@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-import
+  namespace: keycloak
+data:
+  lakehouse-realm.json: |
+    {
+      "id": "lakehouse",
+      "realm": "lakehouse",
+      "enabled": true,
+      "displayName": "Lakehouse Internal Realm",
+      "displayNameHtml": "<div class=\"kc-logo-text\"><span>Lakehouse Platform</span></div>",
+      "roles": {
+        "realm": [
+          {
+            "id": "role-admin",
+            "name": "Admin",
+            "description": "Administrator of the Lakehouse Platform"
+          },
+          {
+            "id": "role-pm",
+            "name": "PM",
+            "description": "Project Manager"
+          },
+          {
+            "id": "role-de",
+            "name": "DE",
+            "description": "Data Engineer"
+          },
+          {
+            "id": "role-da",
+            "name": "DA",
+            "description": "Data Analyst"
+          },
+          {
+            "id": "role-ba",
+            "name": "BA",
+            "description": "Business Analyst"
+          },
+          {
+            "id": "role-ds",
+            "name": "DS",
+            "description": "Data Scientist"
+          }
+        ]
+      },
+      "clients": [
+        {
+          "clientId": "airflow",
+          "name": "Apache Airflow",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "authorizationServicesEnabled": false,
+          "redirectUris": [
+            "https://airflow.lakehouse.local/oauth-authorized/keycloak",
+            "https://airflow.lakehouse.local/*"
+          ],
+          "webOrigins": [
+            "https://airflow.lakehouse.local"
+          ],
+          "secret": "airflow-oidc-client-secret-123456",
+          "defaultClientScopes": [
+            "web-origins",
+            "acr",
+            "roles",
+            "profile",
+            "email"
+          ]
+        },
+        {
+          "clientId": "jupyterhub",
+          "name": "JupyterHub",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "authorizationServicesEnabled": false,
+          "redirectUris": [
+            "https://jupyterhub.lakehouse.local/hub/oauth_callback",
+            "https://jupyterhub.lakehouse.local/*"
+          ],
+          "webOrigins": [
+            "https://jupyterhub.lakehouse.local"
+          ],
+          "secret": "jupyterhub-oidc-client-secret-123456",
+          "defaultClientScopes": [
+            "web-origins",
+            "acr",
+            "roles",
+            "profile",
+            "email"
+          ]
+        }
+      ]
+    }

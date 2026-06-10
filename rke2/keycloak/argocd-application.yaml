@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # Source 1: Vendored Keycloak Helm Chart
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      path: rke2/keycloak/charts/keycloakx-7.2.0
+      helm:
+        releaseName: keycloak
+        valueFiles:
+          - $values/rke2/keycloak/values-production.yaml
+    # Source 2: Values Reference (for multi-source value files)
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      ref: values
+    # Source 3: Additional Kubernetes Manifests (Postgres, Secrets)
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      path: rke2/keycloak/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
