@@ -94,6 +94,8 @@ spark:
   # allowing SparkApplication resources to be created in any namespace (e.g. jupyter, airflow).
   jobNamespaces:
     - ""
+    - "spark-operator"
+    - "default"
 
   # Create default ServiceAccount for Spark Driver/Executors to run Spark pods
   serviceAccount:

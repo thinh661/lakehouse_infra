@@ -241,5 +241,25 @@ Nếu bạn đặt `batchScheduler: "volcano"` nhưng Pod Driver không được
 2.  Kiểm tra sự kiện lỗi (Events) trên cụm:
     ```bash
     kubectl describe podGroup spark-pi -n spark-operator
+    ```
+    ```bash
     kubectl get event -n spark-operator --sort-by='.metadata.creationTimestamp'
     ```
+
+### 8.4. Lỗi thiếu ServiceAccount trong Namespace (pods is forbidden / serviceaccount not found)
+Khi submit SparkApplication, bạn sẽ gặp lỗi:
+`pods "spark-pi-driver" is forbidden: error looking up service account spark-operator/spark-service-account: serviceaccount "spark-service-account" not found.`
+
+*   **Nguyên nhân:** Khi cấu hình `spark.jobNamespaces` hỗ trợ multi-namespace (`- ""`), Helm chart của Spark Operator sẽ bỏ qua việc tự tạo ServiceAccount và các quyền RBAC tương ứng. Do đó, các namespace nơi bạn deploy job sẽ thiếu ServiceAccount `spark-service-account`.
+*   **Cách xử lý:**
+    1.  **Cách 1 (Khai báo qua GitOps - Khuyên dùng):** Thêm tên các namespace bạn dự kiến chạy Spark Job vào danh sách `jobNamespaces` của [values-production.yaml](values-production.yaml) (ví dụ: `"spark-operator"`, `"default"`). Khi đó Helm chart sẽ tự động tạo đầy đủ SA và RBAC cho các namespace này.
+    2.  **Cách 2 (Tạo thủ công cho namespace mới):** Nếu bạn muốn chạy Spark job ở một namespace mới khác (ví dụ: `jupyter`, `airflow`), bạn hãy tạo thủ công ServiceAccount và RBAC bằng lệnh sau trên Bastion:
+        ```bash
+        # Thay thế <target-namespace> bằng namespace bạn chạy job (ví dụ: jupyter)
+        kubectl create serviceaccount spark-service-account -n <target-namespace>
+        
+        # Gán quyền chạy Pod cho ServiceAccount đó
+        kubectl create role spark-role --verb=get,list,watch,create,delete --resource=pods,configmaps,services,persistentvolumeclaims -n <target-namespace>
+        kubectl create rolebinding spark-role-binding --role=spark-role --serviceaccount=<target-namespace>:spark-service-account -n <target-namespace>
+        ```
+

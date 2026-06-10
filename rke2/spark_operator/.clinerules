@@ -31,6 +31,7 @@ Thứ tự bootstrap khuyến nghị:
 ## 4. Production Rules
 *   **Thứ tự cài đặt:** Phải cài Volcano trước Spark Operator. Nếu cài Spark Operator trước, vẫn có thể cấu hình sẵn tích hợp Volcano (`controller.batchScheduler.enable=true`), nhưng các SparkApplication yêu cầu Volcano sẽ ở trạng thái `Pending` cho đến khi Volcano được cài đặt và chạy thành công.
 *   **Bảo mật Webhook:** Sử dụng cert-manager để quản lý vòng đời chứng chỉ cho admission webhook của Spark Operator thay vì tự ký thủ công.
-*   **Phạm vi Namespace (Job Namespaces):** Cấu hình `spark.jobNamespaces` hỗ trợ bất kỳ namespace nào (`- ""`) để cho phép người dùng chạy Spark Jobs từ nhiều môi trường (JupyterHub namespace, Airflow namespace, v.v.) thay vì chỉ giới hạn ở namespace default.
+*   **Phạm vi Namespace (Job Namespaces) & ServiceAccount:** Cấu hình `spark.jobNamespaces` hỗ trợ xem toàn bộ namespaces (`- ""`) để cho phép người dùng chạy Spark Jobs từ nhiều môi trường (Jupyter, Airflow). Tuy nhiên, khi dùng `""`, Helm chart sẽ không tự tạo ServiceAccount/RBAC. Để tránh lỗi thiếu ServiceAccount, chúng ta phải khai báo cụ thể thêm các namespace sẽ chạy job vào danh sách `jobNamespaces` (ví dụ: `spark-operator`, `default`, `jupyter`, `airflow`) để Helm tự động tạo ra `spark-service-account` và Role/RoleBinding tương ứng cho các namespace đó.
 *   **Chế độ High Availability (HA):** Bật Leader Election (`controller.leaderElection.enable=true`) để tránh xung đột điều phối khi nâng số lượng bản sao (replicas) của operator.
 *   **Offline Image:** Preload image `ghcr.io/kubeflow/spark-operator/controller:2.4.0` lên các node RKE2 cho môi trường offline trước khi sync.
+
