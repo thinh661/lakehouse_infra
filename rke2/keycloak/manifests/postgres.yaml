@@ -73,7 +73,9 @@ spec:
       securityContext:
         fsGroup: 999
   volumeClaimTemplates:
-    - metadata:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
         name: db-data
       spec:
         accessModes: [ "ReadWriteOnce" ]
