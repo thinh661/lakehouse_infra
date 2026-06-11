@@ -6,7 +6,7 @@ metadata:
 spec:
   type: Scala
   mode: cluster
-  image: "docker.io/bitnami/spark:3.5.1"
+  image: "docker.io/bitnamilegacy/spark:3.5.1"
   imagePullPolicy: IfNotPresent
   mainClass: org.apache.spark.sql.connect.SimpleSparkConnectService
   mainApplicationFile: "local:///opt/bitnami/spark/jars/spark-connect_2.12-3.5.1.jar"
