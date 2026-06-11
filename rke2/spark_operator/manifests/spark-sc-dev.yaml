@@ -3,6 +3,8 @@ kind: SparkApplication
 metadata:
   name: spark-sc-dev
   namespace: spark-operator
+  annotations:
+    sparkoperator.k8s.io/create-ui-ingress: "false"
 spec:
   type: Scala
   mode: cluster
