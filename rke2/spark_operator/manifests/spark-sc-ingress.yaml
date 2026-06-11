@@ -13,4 +13,4 @@ spec:
       protocol: TCP
   selector:
     spark-role: driver
-    spark-app-selector: spark-sc-dev
+    spark-app-name: spark-sc-dev
