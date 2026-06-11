@@ -327,4 +327,7 @@ Chúng tôi đã bật tính năng **uiIngress** cho Spark Operator Controller. 
     * Mở giao diện Spark History Server (chúng tôi cấu hình đọc logs tập trung từ MinIO `s3a://spark-events-bucket/`).
     * Tại đây, bạn có thể phân tích DAG, cấu hình, và các chỉ số hiệu năng (tunning) của các Job đã kết thúc trong quá khứ.
 
+## 11. Xóa argocd app khi bị stuck
+``` kubectl patch application spark-operator -n argocd --type=merge -p '{"operation": null}' ```
+``` kubectl patch application spark-operator -n argocd --type=merge -p '{"metadata":{"finalizers":null}}' ```
 
