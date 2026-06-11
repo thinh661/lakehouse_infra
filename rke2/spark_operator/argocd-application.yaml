@@ -20,6 +20,10 @@ spec:
     - repoURL: https://github.com/thinh661/lakehouse_infra.git
       targetRevision: main
       ref: values
+    # Source 3: Additional Kubernetes Manifests (Spark Connect Server & Ingress)
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      path: rke2/spark_operator/manifests
   destination:
     server: https://kubernetes.default.svc
     namespace: spark-operator

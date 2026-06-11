@@ -79,4 +79,28 @@ Khi Spark Application chạy:
 *   Spark Driver Pod hoạt động như một Kubernetes Controller thu nhỏ: nó trực tiếp gửi yêu cầu tạo các Pod Executor lên API Server.
 *   Do đó, Spark Driver yêu cầu một **ServiceAccount** có đủ quyền (RBAC) để tạo, xóa, và theo dõi (create, delete, watch) Pods trong namespace của nó.
 *   Cấu hình `spark.serviceAccount.create: true` trong values sẽ tự động tạo một ServiceAccount tên `spark-service-account` có đầy đủ Role/ClusterRole tương ứng để gán cho Driver.
-*   Cấu hình `spark.jobNamespaces: [""]` (chứa chuỗi rỗng) cho phép Spark Operator có quyền `Cluster-wide` để giám sát và tạo Spark Application ở bất kỳ namespace nào trong cụm RKE2 (thuận tiện cho việc chạy Spark từ JupyterHub hoặc Airflow ở các namespace khác).
+*   Cấu hình `spark.jobNamespaces` chứa chuỗi rỗng `""` cho phép Spark Operator có quyền `Cluster-wide` để giám sát và tạo Spark Application ở bất kỳ namespace nào trong cụm RKE2. Tuy nhiên, khi dùng `""`, Helm chart sẽ không tự động tạo ServiceAccount cho các namespace. Do đó, chúng tôi khai báo tường minh thêm các namespace chính (như `spark-operator`, `default`, `jupyter`, `airflow`) vào danh sách `jobNamespaces` để Helm tự động tạo sẵn ServiceAccount và RBAC Role/RoleBinding tương ứng.
+
+---
+
+## 6. Thiết kế Spark Connect Server (`spark-sc-dev`)
+
+Để tối ưu hóa trải nghiệm phát triển (Interactive Dev/Test) cho Data Scientists trên JupyterHub và các nhà phát triển nội bộ (Local Developers), chúng tôi thiết lập một dịch vụ **Spark Connect Server** chạy liên tục tên là `spark-sc-dev` dưới dạng một SparkApplication Java:
+*   **Cơ chế Thin Client (Decoupling):** Thay vì để Jupyter Notebook Pod chạy tiến trình Spark Driver nặng nề, Notebook Pod chỉ chạy một thư viện mỏng (thin-client) và gửi các lệnh tính toán qua cổng gRPC `15002` tới Spark Connect Server.
+*   **Dynamic Resource Allocation (DRA):** Spark Connect Server được cấu hình tính năng co giãn tài nguyên động dựa trên tải công việc thực tế (`spark.dynamicAllocation.enabled: true` và `spark.dynamicAllocation.shuffleTracking.enabled: true`). 
+    *   Khi không có lệnh tính toán nào từ Jupyter/Local, số lượng Executor Pods tự động scale-down về `0` để tiết kiệm RAM/CPU cho cụm.
+    *   Khi có truy vấn gửi đến, Server tự động gửi yêu cầu lên API Server để tạo nhanh các Executor Pods (tối đa là 5 Executors).
+    *   Các Executor Pods sau 60 giây ở trạng thái rỗi (idle) sẽ tự động bị xóa bỏ.
+*   **Tích hợp Volcano:** Toàn bộ các Executor được co giãn bởi Spark Connect Server đều được cấu hình schedulerName là `volcano`, đảm bảo việc xếp hàng tài nguyên công bằng và tối ưu.
+*   **Expose gRPC & UI:** Service NodePort `spark-sc-dev-connect-nodeport` mở cổng `30052` trên các RKE2 nodes để người dùng local kết nối gRPC, và Ingress `spark-sc-dev-ui.lakehouse.local` mở cổng `4040` bảo mật HTTPS để quản trị viên theo dõi Spark UI thời gian thực.
+
+---
+
+## 7. Thiết kế Spark UI Reverse Proxy cho các Batch Jobs
+
+Khi chạy các Spark Job dạng lô (batch) thông qua Airflow (sử dụng `SparkKubernetesOperator`), các Pod Spark Driver và Executor sẽ bị xóa ngay lập tức khi Job kết thúc để giải phóng tài nguyên. Để người dùng có thể trace log và kiểm tra Spark UI trong quá trình Job đang chạy:
+*   **Bật UI Ingress tự động:** Chúng tôi cấu hình tham số `controller.uiIngress.enable: true` trong Spark Operator Controller.
+*   **Cú pháp URL động:** Khi có một SparkApplication được submit, Controller sẽ tự động tạo ra một Ingress tương ứng với host-name động có định dạng: `{{$appName}}-{{$appNamespace}}.spark-ui.lakehouse.local`.
+*   **Tích hợp Airflow Reverse Proxy:** Airflow có thể đọc được Ingress URL này từ API của SparkApplication và in ra link trong Logs. Người dùng chỉ cần click vào link là có thể truy cập thẳng vào Spark UI thời gian thực của Job mà không cần cấu hình thủ công.
+*   **Lưu trữ Event Logs lâu dài:** Toàn bộ log sự kiện của Job sẽ được stream trực tiếp về **MinIO** (`s3a://spark-events-bucket/`). Sau khi Job kết thúc và các Pod bị xóa, người dùng truy cập vào **Spark History Server** để xem lại toàn bộ DAG và thực hiện tunning cấu hình cho các lần chạy sau.
+

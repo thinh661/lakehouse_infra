@@ -1,0 +1,43 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spark-sc-dev-ui
+  namespace: spark-operator
+  annotations:
+    cert-manager.io/cluster-issuer: lakehouse-ca
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: spark-sc-dev-ui.lakehouse.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: spark-sc-dev-ui-svc
+                port:
+                  number: 4040
+  tls:
+    - hosts:
+        - spark-sc-dev-ui.lakehouse.local
+      secretName: spark-sc-dev-ui-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-sc-dev-connect-nodeport
+  namespace: spark-operator
+spec:
+  type: NodePort
+  ports:
+    - name: spark-connect
+      port: 15002
+      targetPort: 15002
+      nodePort: 30052
+      protocol: TCP
+  selector:
+    spark-role: driver
+    spark-app-selector: spark-sc-dev

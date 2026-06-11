@@ -121,3 +121,14 @@ sudo systemctl start rke2-server
 
 sudo systemctl status rke2-server
 ```
+## Restart node cách 2 
+```
+# 1. Dừng hẳn service RKE2 để tránh xung đột
+sudo systemctl stop rke2-server.service
+# 2. Chạy script quét sạch các containerd-shim zombie và giải phóng cổng 2379 cùng file lock của etcd
+sudo rke2-killall.sh
+# 3. Khởi động lại dịch vụ RKE2 Server
+sudo systemctl start rke2-server.service
+# 4. Kiểm tra lại trạng thái xem service đã chuyển sang active (running) chưa
+sudo systemctl status rke2-server.service
+```

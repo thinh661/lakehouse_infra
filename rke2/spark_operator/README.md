@@ -36,14 +36,19 @@ rke2/spark_operator/
   ├── values-production.yaml
   ├── spark-operator.default-values.yaml
   ├── argocd-application.yaml
+  ├── manifests/
+  │   ├── spark-sc-dev.yaml
+  │   └── spark-sc-ingress.yaml
   └── charts/
       └── spark-operator-v2.4.0/
 ```
 
 Vai trò các file:
-*   [values-production.yaml](values-production.yaml): Cấu hình production Helm values cho Spark Operator (tích hợp cert-manager, bật tích hợp Volcano làm scheduler mặc định, phân quyền multi-namespace).
+*   [values-production.yaml](values-production.yaml): Cấu hình production Helm values cho Spark Operator (tích hợp cert-manager, bật Ingress tự sinh cho Spark UI, bật tích hợp Volcano làm scheduler mặc định, phân quyền multi-namespace).
 *   [spark-operator.default-values.yaml](spark-operator.default-values.yaml): Default values gốc từ Helm chart để đối chiếu.
 *   [argocd-application.yaml](argocd-application.yaml): Manifest của ArgoCD Application để đồng bộ cụm qua GitOps.
+*   `manifests/spark-sc-dev.yaml`: Manifest của Spark Connect Server (`spark-sc-dev`), cho phép kết nối tương tác và bật co giãn Executor động.
+*   `manifests/spark-sc-ingress.yaml`: Manifest expose Ingress cho Spark Connect UI và NodePort Service cho kết nối gRPC từ bên ngoài.
 *   `charts/spark-operator-v2.4.0/`: Thư mục Helm chart đã được vendor sẵn trong Git repo.
 
 ---
@@ -262,4 +267,64 @@ Khi submit SparkApplication, bạn sẽ gặp lỗi:
         kubectl create role spark-role --verb=get,list,watch,create,delete --resource=pods,configmaps,services,persistentvolumeclaims -n <target-namespace>
         kubectl create rolebinding spark-role-binding --role=spark-role --serviceaccount=<target-namespace>:spark-service-account -n <target-namespace>
         ```
+
+---
+
+## 9. Hướng dẫn Vận hành Spark Connect Server (`spark-sc-dev`)
+
+Dịch vụ **Spark Connect** cho phép các môi trường lập trình (như JupyterHub Notebook hoặc máy Local của Developer) kết nối tương tác trực tiếp tới cụm Spark để chạy code mà không cần Jupyter/Local đóng vai trò làm Driver (chỉ cần chạy thin-client).
+
+### 9.1. Khởi chạy Spark Connect Server
+File manifest [spark-sc-dev.yaml](manifests/spark-sc-dev.yaml) định nghĩa Spark Connect Server chạy trên cụm. Để deploy:
+```bash
+# Spark Connect Server được ArgoCD tự động deploy nếu bạn đã bật tự động sync, hoặc bạn có thể apply thủ công:
+kubectl apply -f manifests/spark-sc-dev.yaml
+```
+Khi chạy, Spark Connect Server sẽ hiển thị dưới dạng một pod Driver trong namespace `spark-operator` và lắng nghe cổng gRPC `15002`.
+
+### 9.2. Cách kết nối từ JupyterHub / Môi trường Python nội bộ
+Cài đặt thư viện pyspark phiên bản nhẹ (thin-client) trên môi trường phát triển:
+```bash
+pip install "pyspark[connect]==3.5.0"
+```
+Khởi tạo kết nối trong code Python/Jupyter Notebook:
+```python
+from pyspark.sql import SparkSession
+
+# Kết nối trực tiếp tới Service của spark-sc-dev trong cụm Kubernetes
+spark = SparkSession.builder \
+    .remote("sc://spark-sc-dev-driver-svc.spark-operator.svc.cluster.local:15002") \
+    .getOrCreate()
+
+# Thực hiện truy vấn dữ liệu (Các executor sẽ tự động scale-up bởi Server)
+df = spark.read.json("s3a://lakehouse-raw-bucket/data.json")
+df.show()
+```
+
+### 9.3. Cách kết nối từ máy Local (Ngoài cụm RKE2)
+Chúng tôi đã expose cổng gRPC `15002` của Spark Connect thông qua một Service NodePort ở cổng `30052`. 
+1. Kết nối từ máy local của lập trình viên:
+   ```python
+   spark = SparkSession.builder \
+       .remote("sc://192.168.49.144:30052") \  # IP của Bastion Load Balancer
+       .getOrCreate()
+   ```
+2. Theo dõi giao diện Spark UI thời gian thực của Server Spark Connect tại:
+   * Thêm tệp hosts trên Windows: `192.168.49.144 spark-sc-dev-ui.lakehouse.local`
+   * Mở trình duyệt Web: `https://spark-sc-dev-ui.lakehouse.local`
+
+---
+
+## 10. Hướng dẫn sử dụng Spark UI Proxy & Tích hợp Airflow
+
+Chúng tôi đã bật tính năng **uiIngress** cho Spark Operator Controller. Khi bất kỳ ứng dụng Spark nào (như Job batch `spark-pi`) được submit:
+
+1.  **Tự động sinh Ingress:** Controller sẽ tự động tạo một Ingress trỏ đến Spark UI của Driver pod đó với tên miền định dạng:
+    `https://<appName>-<namespace>.spark-ui.lakehouse.local`
+2.  **Xem link trong log Airflow:** Khi Airflow sử dụng `SparkKubernetesOperator` để chạy Job, logs của Airflow sẽ in ra link URL Ingress này. Người dùng chỉ cần click vào link là có thể truy cập thẳng vào Spark UI để xem quá trình xử lý, DAG và logging thời gian thực.
+3.  **Trace logs lịch sử (Spark History Server):**
+    Sau khi Job hoàn thành, các Pod Driver và Executor sẽ bị xóa đi để giải phóng tài nguyên. Để xem lại log:
+    * Mở giao diện Spark History Server (chúng tôi cấu hình đọc logs tập trung từ MinIO `s3a://spark-events-bucket/`).
+    * Tại đây, bạn có thể phân tích DAG, cấu hình, và các chỉ số hiệu năng (tunning) của các Job đã kết thúc trong quá khứ.
+
 

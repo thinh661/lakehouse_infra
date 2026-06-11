@@ -26,6 +26,12 @@ controller:
   uiService:
     enable: true
 
+  # Configure UI Ingress template for automatic routing
+  uiIngress:
+    enable: true
+    urlFormat: "{{$appName}}-{{$appNamespace}}.spark-ui.lakehouse.local"
+    ingressClassName: "traefik"
+
   # Integrate with Volcano Batch Scheduler
   batchScheduler:
     enable: true

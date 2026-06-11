@@ -1,0 +1,41 @@
+apiVersion: "sparkoperator.k8s.io/v1beta2"
+kind: SparkApplication
+metadata:
+  name: spark-sc-dev
+  namespace: spark-operator
+spec:
+  type: Scala
+  mode: cluster
+  image: "docker.io/apache/spark:3.5.0"
+  imagePullPolicy: IfNotPresent
+  mainClass: org.apache.spark.sql.connect.service.SparkConnectServer
+  mainApplicationFile: "local:///opt/spark/jars/spark-connect_2.12-3.5.0.jar"
+  sparkVersion: "3.5.0"
+  batchScheduler: "volcano"
+  sparkConf:
+    "spark.dynamicAllocation.enabled": "true"
+    "spark.dynamicAllocation.shuffleTracking.enabled": "true"
+    "spark.dynamicAllocation.minExecutors": "0"
+    "spark.dynamicAllocation.maxExecutors": "5"
+    "spark.dynamicAllocation.executorIdleTimeout": "60s"
+    "spark.dynamicAllocation.schedulerBacklogTimeout": "1s"
+    "spark.kubernetes.scheduler.name": "volcano"
+    "spark.connect.grpc.binding.port": "15002"
+  driver:
+    cores: 1
+    coreRequest: "200m"
+    coreLimit: "500m"
+    memory: "512m"
+    serviceAccount: spark-service-account
+    ports:
+      - name: spark-connect
+        port: 15002
+        protocol: TCP
+      - name: spark-ui
+        port: 4040
+        protocol: TCP
+  executor:
+    cores: 1
+    coreRequest: "200m"
+    coreLimit: "500m"
+    memory: "512m"
