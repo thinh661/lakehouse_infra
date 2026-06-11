@@ -31,9 +31,6 @@ spec:
       - name: spark-connect
         containerPort: 15002
         protocol: TCP
-      - name: spark-ui
-        containerPort: 4040
-        protocol: TCP
   executor:
     cores: 1
     coreRequest: "200m"
