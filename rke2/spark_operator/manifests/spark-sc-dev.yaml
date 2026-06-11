@@ -29,10 +29,10 @@ spec:
     serviceAccount: spark-service-account
     ports:
       - name: spark-connect
-        port: 15002
+        containerPort: 15002
         protocol: TCP
       - name: spark-ui
-        port: 4040
+        containerPort: 4040
         protocol: TCP
   executor:
     cores: 1
