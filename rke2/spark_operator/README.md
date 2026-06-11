@@ -282,6 +282,12 @@ kubectl apply -f manifests/spark-sc-dev.yaml
 ```
 Khi chạy, Spark Connect Server sẽ hiển thị dưới dạng một pod Driver trong namespace `spark-operator` và lắng nghe cổng gRPC `15002`.
 
+Đứng tại thư mục gốc của repo lakehouse_infra
+```
+docker build -t harbor.lakehouse.local/spark/spark-connect:3.5.0 -f rke2/spark_operator/Dockerfile .
+docker push harbor.lakehouse.local/spark/spark-connect:3.5.0
+```
+
 ### 9.2. Cách kết nối từ JupyterHub / Môi trường Python nội bộ
 Cài đặt thư viện pyspark phiên bản nhẹ (thin-client) trên môi trường phát triển:
 ```bash
