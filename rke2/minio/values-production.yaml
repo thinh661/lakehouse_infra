@@ -80,9 +80,14 @@ consoleService:
   annotations: {}
 
 # ---------------------------------------------------------------------------
-# Ingress cho MinIO Console (UI)
+# Ingress cho MinIO S3 API (không expose ra ngoài cluster)
 # ---------------------------------------------------------------------------
 ingress:
+  enabled: false
+
+# Ingress cho MinIO Console (UI) - map với service minio-console (port 9001)
+# ---------------------------------------------------------------------------
+consoleIngress:
   enabled: true
   ingressClassName: "traefik"
   labels: {}
@@ -97,10 +102,6 @@ ingress:
     - secretName: minio-console-tls
       hosts:
         - minio.lakehouse.local
-
-# Ingress cho MinIO S3 API (không expose ra ngoài cluster)
-consoleIngress:
-  enabled: false
 
 # ---------------------------------------------------------------------------
 # Buckets tạo tự động khi khởi tạo
