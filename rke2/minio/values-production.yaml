@@ -132,6 +132,7 @@ buckets:
 # ---------------------------------------------------------------------------
 customCommands:
   - command: "cp /etc/hosts myminio/spark-events-connect/sc-dev/init.txt"
+  - command: "cp /etc/hosts myminio/spark-events-batch/logs/init.txt"
 
 # ---------------------------------------------------------------------------
 # Policies (IAM-style, tùy chọn)
