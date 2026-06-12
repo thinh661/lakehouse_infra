@@ -7,7 +7,7 @@ spec:
   type: Scala
   mode: cluster
   image: "docker.io/thinh661/spark-connect:3.5.0"
-  imagePullPolicy: Always
+  imagePullPolicy: IfNotPresent
   mainClass: org.apache.spark.sql.connect.SimpleSparkConnectService
   mainApplicationFile: "local:///opt/spark/jars/spark-connect_2.12-3.5.0.jar"
   sparkVersion: "3.5.0"
