@@ -282,10 +282,36 @@ kubectl apply -f manifests/spark-sc-dev.yaml
 ```
 Khi chạy, Spark Connect Server sẽ hiển thị dưới dạng một pod Driver trong namespace `spark-operator` và lắng nghe cổng gRPC `15002`.
 
-Đứng tại thư mục gốc của repo lakehouse_infra
+#### Bước 1: Tải các thư viện kết nối S3A (MinIO)
+Do Spark 3.5.0 sử dụng Hadoop 3.3.4, chúng ta cần bổ sung 2 thư viện kết nối S3A vào thư mục `jars/` trước khi build Docker Image.
+
+**Trên máy Local (Windows - PowerShell):**
+```powershell
+# Chạy tại thư mục gốc của dự án lakehouse_infra
+Invoke-WebRequest -Uri "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar" -OutFile "rke2/spark_operator/jars/hadoop-aws-3.3.4.jar"
+Invoke-WebRequest -Uri "https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar" -OutFile "rke2/spark_operator/jars/aws-java-sdk-bundle-1.12.262.jar"
 ```
+
+**Hoặc tải trực tiếp trên Bastion (Linux):**
+```bash
+# Chạy tại thư mục gốc của dự án lakehouse_infra
+wget -P rke2/spark_operator/jars/ https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar
+wget -P rke2/spark_operator/jars/ https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar
+```
+
+#### Bước 2: Build và Push Image lên Harbor Registry
+Đứng tại thư mục gốc của repo `lakehouse_infra` để chạy build:
+```bash
 docker build -t harbor.lakehouse.local/spark/spark-connect:3.5.0 -f rke2/spark_operator/Dockerfile .
 docker push harbor.lakehouse.local/spark/spark-connect:3.5.0
+```
+*(Nếu bạn đang deploy qua image trên Docker Hub công khai, hãy tag và push theo tag tương ứng trong manifest, ví dụ `docker.io/thinh661/spark-connect:3.5.0`).*
+
+#### Bước 3: Cập nhật và Redeploy Spark Connect
+Nếu Spark Connect đang chạy bản cũ bị crash, hãy xoá và apply lại manifest hoặc sync qua ArgoCD:
+```bash
+kubectl delete -f manifests/spark-sc-dev.yaml
+kubectl apply -f manifests/spark-sc-dev.yaml
 ```
 
 ### 9.2. Cách kết nối từ JupyterHub / Môi trường Python nội bộ

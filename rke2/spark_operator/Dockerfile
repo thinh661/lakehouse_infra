@@ -7,10 +7,13 @@ USER root
 # Copy the Spark Connect JAR into the Spark jars directory
 COPY jars/spark-connect_2.12-3.5.0.jar /opt/spark/jars/
 
-# (Optional) Add other production connectors if needed
+# Add other production connectors if needed
 # COPY jars/postgresql-42.6.0.jar /opt/spark/jars/
-# COPY jars/aws-java-sdk-bundle-1.12.262.jar /opt/spark/jars/
-# COPY jars/hadoop-aws-3.3.4.jar /opt/spark/jars/
+COPY jars/aws-java-sdk-bundle-1.12.262.jar /opt/spark/jars/
+COPY jars/hadoop-aws-3.3.4.jar /opt/spark/jars/
+
+# Set correct permissions for the copied jars
+RUN chmod 644 /opt/spark/jars/aws-java-sdk-bundle-1.12.262.jar /opt/spark/jars/hadoop-aws-3.3.4.jar
 
 # Revert back to the default non-root spark user (UID 185)
 USER 185
