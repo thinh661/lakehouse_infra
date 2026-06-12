@@ -49,7 +49,7 @@ spec:
     cores: 1
     coreRequest: "200m"
     coreLimit: "500m"
-    memory: "384m"
+    memory: "512m"
     memoryOverhead: "128m"
     serviceAccount: spark-service-account
     ports:
@@ -60,5 +60,5 @@ spec:
     cores: 1
     coreRequest: "200m"
     coreLimit: "500m"
-    memory: "384m"
+    memory: "512m"
     memoryOverhead: "128m"
