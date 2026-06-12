@@ -127,6 +127,13 @@ buckets:
     objectlocking: false
 
 # ---------------------------------------------------------------------------
+# Lệnh Custom chạy sau khi MinIO và Buckets đã tạo xong
+# Tự động tạo cấu trúc thư mục sc-dev bên trong spark-events-connect
+# ---------------------------------------------------------------------------
+customCommands:
+  - command: "cp /etc/hosts myminio/spark-events-connect/sc-dev/init.txt"
+
+# ---------------------------------------------------------------------------
 # Policies (IAM-style, tùy chọn)
 # ---------------------------------------------------------------------------
 policies: []

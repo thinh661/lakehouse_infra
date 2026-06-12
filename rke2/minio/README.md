@@ -214,8 +214,8 @@ kubectl get certificate -n minio
 
 # 6. Kiểm tra bucket đã được tạo bằng mc client
 kubectl run minio-test --rm -it --image=quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z \
-  --restart=Never -n minio -- \
-  sh -c "mc alias set local http://minio.minio.svc.cluster.local:9000 minioadmin <password> && mc ls local/"
+  --restart=Never -n minio --command -- \
+  sh -c "mc alias set local http://minio.minio.svc.cluster.local:9000 minioadmin 123123123 && mc ls local/"
 ```
 
 ---
