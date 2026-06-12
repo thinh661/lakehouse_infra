@@ -1,0 +1,169 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-history-server-batch-conf
+  namespace: spark-operator
+data:
+  spark-defaults.conf: |-
+    # S3A Configs
+    spark.hadoop.fs.s3a.endpoint http://minio.minio.svc.cluster.local:9000
+    spark.hadoop.fs.s3a.access.key minioadmin
+    spark.hadoop.fs.s3a.secret.key 123123123
+    spark.hadoop.fs.s3a.path.style.access true
+    spark.hadoop.fs.s3a.connection.ssl.enabled false
+    spark.hadoop.fs.s3a.impl org.apache.hadoop.fs.s3a.S3AFileSystem
+    spark.hadoop.fs.s3a.aws.credentials.provider org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+    spark.hadoop.fs.s3a.metadatastore.impl org.apache.hadoop.fs.s3a.s3guard.NullMetadataStore
+
+    # S3A Tuning
+    spark.hadoop.fs.s3a.connection.maximum 200
+    spark.hadoop.fs.s3a.threads.max 50
+    spark.hadoop.fs.s3a.max.total.tasks 100
+    spark.hadoop.fs.s3a.connection.timeout 20000
+
+    # History Server Configs - CHỈ ĐỌC TỪ BUCKET BATCH
+    spark.history.fs.logDirectory s3a://spark-events-batch/logs
+    spark.history.store.path /tmp/shs-cache
+    spark.history.store.maxDiskUsage 4g
+    spark.history.fs.update.interval 10s
+    spark.history.fs.cleaner.enabled true
+    spark.history.fs.cleaner.interval 1d
+    spark.history.fs.cleaner.maxAge 7d
+    spark.history.fs.numReplayThreads 4
+    spark.history.fs.inProgressOptimization.enabled true
+
+  log4j2.properties: |-
+    rootLogger.level = info
+    rootLogger.appenderRef.stdout.ref = console
+    appender.console.type = Console
+    appender.console.name = console
+    appender.console.target = SYSTEM_ERR
+    appender.console.layout.type = PatternLayout
+    appender.console.layout.pattern = %d{yy/MM/dd HH:mm:ss} %p %c{1}: %m%n%ex
+    logger.spark.name = org.apache.spark
+    logger.spark.level = INFO
+    logger.hadoop.name = org.apache.hadoop
+    logger.hadoop.level = INFO
+    logger.s3a.name = org.apache.hadoop.fs.s3a
+    logger.s3a.level = INFO
+    logger.history.name = org.apache.spark.deploy.history.FsHistoryProvider
+    logger.history.level = INFO
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-history-server-batch
+  namespace: spark-operator
+  labels:
+    app: spark-history-server-batch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-history-server-batch
+  template:
+    metadata:
+      labels:
+        app: spark-history-server-batch
+    spec:
+      serviceAccountName: spark-service-account
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: spark-history-server
+          image: ghcr.io/kubedai/spark-history-server:latest-aws-latest
+          imagePullPolicy: Always
+          command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.history.HistoryServer"]
+          ports:
+            - containerPort: 18080
+              name: web-ui
+          env:
+            - name: SPARK_DAEMON_MEMORY
+              value: "1g"
+            - name: SPARK_DAEMON_JAVA_OPTS
+              value: "-XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:G1HeapRegionSize=32m -XX:+UseStringDeduplication"
+          volumeMounts:
+            - name: spark-conf
+              mountPath: /opt/spark/conf
+            - name: shs-cache
+              mountPath: /tmp/shs-cache
+            - name: tmp-dir
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 18080
+              scheme: HTTP
+            initialDelaySeconds: 60
+            timeoutSeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 18080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            timeoutSeconds: 10
+            periodSeconds: 15
+            successThreshold: 1
+            failureThreshold: 3
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+      volumes:
+        - name: spark-conf
+          configMap:
+            name: spark-history-server-batch-conf
+        - name: shs-cache
+          emptyDir: {}
+        - name: tmp-dir
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-history-server-batch
+  namespace: spark-operator
+spec:
+  type: ClusterIP
+  ports:
+    - port: 18080
+      targetPort: 18080
+      name: web-ui
+  selector:
+    app: spark-history-server-batch
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spark-history-server-batch-ingress
+  namespace: spark-operator
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: spark-history-batch.lakehouse.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: spark-history-server-batch
+                port:
+                  number: 18080

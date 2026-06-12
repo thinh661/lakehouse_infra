@@ -15,14 +15,14 @@ spec:
   sparkConf:
     # --- Event Logging -> MinIO spark-events-batch bucket ---
     "spark.eventLog.enabled": "true"
-    "spark.eventLog.dir": "s3a://spark-events-batch/logs/"
+    "spark.eventLog.dir": "s3a://spark-events-batch/logs"
     "spark.hadoop.fs.s3a.endpoint": "http://minio.minio.svc.cluster.local:9000"
     "spark.hadoop.fs.s3a.access.key": "minioadmin"
     "spark.hadoop.fs.s3a.secret.key": "123123123"
     "spark.hadoop.fs.s3a.path.style.access": "true"
     "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem"
     "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
-    "spark.hadoop.fs.s3a.fast.upload": "true"
+    "spark.hadoop.fs.s3a.metadatastore.impl": "org.apache.hadoop.fs.s3a.s3guard.NullMetadataStore"
   driver:
     cores: 1                 # Giữ nguyên số nguyên 1 (Spark internal cores)
     coreRequest: "100m"      # Thêm dòng này: CPU Request thực tế gửi lên K8s (100m CPU)
