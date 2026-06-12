@@ -1,0 +1,37 @@
+# MinIO S3 API Ingress (tùy chọn)
+# File này chỉ cần apply nếu muốn expose MinIO S3 API ra ngoài cluster qua Traefik.
+# Mặc định: S3 API (port 9000) chỉ dùng nội bộ cluster qua ClusterIP Service.
+#
+# CẢNH BÁO: Chỉ expose S3 API ra ngoài khi thực sự cần thiết (ví dụ: tool local cần upload dữ liệu).
+# Cân nhắc bảo mật: S3 API không có xác thực HTTPS-level mạnh như Console UI.
+#
+# Để enable: bỏ comment toàn bộ manifest dưới đây và commit vào Git.
+
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: minio-s3-api
+#   namespace: minio
+#   annotations:
+#     cert-manager.io/cluster-issuer: lakehouse-ca
+#     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+#     traefik.ingress.kubernetes.io/router.tls: "true"
+#     # S3 API cần passthrough headers đặc biệt
+#     traefik.ingress.kubernetes.io/router.middlewares: ""
+# spec:
+#   ingressClassName: traefik
+#   tls:
+#     - secretName: minio-s3-api-tls
+#       hosts:
+#         - minio-api.lakehouse.local
+#   rules:
+#     - host: minio-api.lakehouse.local
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: minio
+#                 port:
+#                   number: 9000

@@ -10,7 +10,12 @@ Thứ tự bootstrap khuyến nghị:
 2.  ArgoCD bằng Terraform.
 3.  cert-manager bằng ArgoCD Application, dùng Helm chart đã vendor trong Git repo.
 4.  Longhorn Storage.
-5.  Các ứng dụng lakehouse như Kafka, Airflow, MinIO, Trino, Superset, Rancher, v.v.
+5.  Keycloak (IAM/SSO).
+6.  Volcano (Batch Scheduler).
+7.  Spark Operator (kết nối Volcano và cert-manager).
+8.  MinIO (object storage cho Spark Event Logs).
+9.  Spark History Server (đọc logs từ MinIO).
+10. Các ứng dụng lakehouse khác như JupyterHub, Airflow, Trino, Superset, Rancher, v.v.
 
 ## 2. Hạ tầng hiện tại
 *   Cụm RKE2: `v1.36.1+rke2r2`.

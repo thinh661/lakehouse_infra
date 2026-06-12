@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minio
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # Source 1: Vendored MinIO Helm Chart (chart chính thống từ minio/minio, không phải Bitnami)
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      path: rke2/minio/charts/minio-5.4.0
+      helm:
+        releaseName: minio
+        valueFiles:
+          - $values/rke2/minio/values-production.yaml
+    # Source 2: Values Reference
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      ref: values
+    # Source 3: Additional Kubernetes Manifests (bucket init job, ingress)
+    - repoURL: https://github.com/thinh661/lakehouse_infra.git
+      targetRevision: main
+      path: rke2/minio/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: minio
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

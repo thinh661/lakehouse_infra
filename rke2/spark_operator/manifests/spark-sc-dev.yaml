@@ -13,6 +13,7 @@ spec:
   sparkVersion: "3.5.0"
   batchScheduler: "volcano"
   sparkConf:
+    # --- Dynamic Resource Allocation ---
     "spark.dynamicAllocation.enabled": "true"
     "spark.dynamicAllocation.shuffleTracking.enabled": "true"
     "spark.dynamicAllocation.minExecutors": "0"
@@ -21,6 +22,29 @@ spec:
     "spark.dynamicAllocation.schedulerBacklogTimeout": "1s"
     "spark.kubernetes.scheduler.name": "volcano"
     "spark.connect.grpc.binding.port": "15002"
+    # --- Event Logging -> MinIO spark-events-connect bucket ---
+    # Connect server chạy vĩnh viễn -> log được ghi liên tục (in-progress)
+    # Spark History Server có thể đọc log in-progress, hiển thị là "(running)"
+    # Sau khi server restart, log cũ vẫn đọc được dưới dạng finished application
+    "spark.eventLog.enabled": "true"
+    "spark.eventLog.dir": "s3a://spark-events-connect/sc-dev/"
+    "spark.hadoop.fs.s3a.endpoint": "http://minio.minio.svc.cluster.local:9000"
+    "spark.hadoop.fs.s3a.access.key": "minioadmin"
+    "spark.hadoop.fs.s3a.secret.key": "123123123"
+    "spark.hadoop.fs.s3a.path.style.access": "true"
+    "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
+    "spark.hadoop.fs.s3a.fast.upload": "true"
+    # --- Giới hạn RAM AppStatusStore (in-memory Spark UI data) ---
+    # Đây mới là config THỰC SỰ giảm RAM cho long-running Connect Server.
+    # Event log sang MinIO không giảm RAM - in-memory store vẫn tồn tại song song.
+    # Các giá trị dưới đây giảm từ default (1000/100000/1000) xuống mức hợp lý cho lab.
+    # Dữ liệu cũ hơn giới hạn này vẫn đọc được qua Spark History Server (đọc từ MinIO).
+    "spark.ui.retainedJobs": "50"
+    "spark.ui.retainedStages": "50"
+    "spark.ui.retainedTasks": "500"
+    "spark.sql.ui.retainedExecutions": "50"
+    "spark.ui.retainedDeadExecutors": "20"
   driver:
     cores: 1
     coreRequest: "200m"

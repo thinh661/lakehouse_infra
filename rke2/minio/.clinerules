@@ -1,0 +1,77 @@
+# Workspace Rules & Context: MinIO for RKE2 Lakehouse
+
+File này cung cấp ngữ cảnh nhanh cho AI Assistant khi làm việc trong thư mục `rke2/minio`, nhằm tránh hỏi lại các quyết định nền tảng và giữ tài liệu nhất quán với cụm RKE2 hiện tại.
+
+## 1. Vai trò trong Lakehouse Infra
+
+`minio` là thành phần object storage tương thích S3 (AGPL v3) phục vụ làm nơi lưu trữ **Spark Event Logs** cho **Spark History Server** và là nền tảng lưu trữ dữ liệu cho các lakehouse component sau này (Iceberg, Delta Lake, Airflow logs, v.v.).
+
+Thứ tự bootstrap khuyến nghị:
+1.  RKE2 HA Cluster bằng Ansible.
+2.  ArgoCD bằng Terraform.
+3.  cert-manager bằng ArgoCD (cung cấp TLS ClusterIssuer `lakehouse-ca`).
+4.  Longhorn Storage (cung cấp StorageClass `longhorn`).
+5.  **MinIO (module này)** — phải cài trước Spark History Server.
+6.  Volcano + Spark Operator (đã cài).
+7.  Spark History Server BATCH (đọc `spark-events-batch`) + Spark History Server CONNECT (đọc `spark-events-connect`).
+8.  JupyterHub, Airflow, Trino, Superset.
+
+## 2. Hạ tầng hiện tại
+
+*   Cụm RKE2: `v1.36.1+rke2r2`.
+*   Bastion / HAProxy: `192.168.49.144`.
+*   RKE2 server nodes: `192.168.49.141`, `192.168.49.142`, `192.168.49.143`.
+*   Ingress Controller: Traefik mặc định của RKE2, entrypoint `websecure` port `443`.
+*   Local domain pattern: `*.lakehouse.local` trỏ về Bastion IP `192.168.49.144`.
+*   cert-manager `ClusterIssuer` tên `lakehouse-ca` đang hoạt động.
+*   Longhorn StorageClass `longhorn` đang hoạt động với replica count 1 (cấu hình lab).
+
+## 3. Phiên bản và nguồn Helm Chart
+
+*   MinIO chart version: `5.4.0` (chart chính thống từ repo `minio/minio` tại `helm/minio`).
+*   MinIO appVersion: `RELEASE.2024-12-18T13-15-44Z`.
+*   Container image: `quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z`.
+*   MinIO Client image: `quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z`.
+*   Helm repo: `https://charts.min.io/` (chart `minio/minio`, KHÔNG phải Bitnami).
+*   Nguồn ArgoCD dùng khi sync: chart đã vendor trong Git tại `rke2/minio/charts/minio-5.4.0`.
+*   ArgoCD Application chính: `argocd-application.yaml`.
+*   Namespace: `minio`.
+
+## 4. Cấu hình triển khai (Minimal / Single-node)
+
+*   Mode: `standalone` (replicas=1, drivesPerNode=1).
+*   Credentials lưu trong Kubernetes Secret `minio-credentials` (existingSecret), KHÔNG khai báo plaintext trong values.
+*   Secret phải tạo thủ công trước khi ArgoCD sync: `kubectl create secret generic minio-credentials -n minio --from-literal=rootUser=<admin> --from-literal=rootPassword=<password>`.
+*   PVC: 1 PVC dùng StorageClass `longhorn` với 5Gi.
+
+## 5. Bucket Strategy (2 bucket)
+
+Do Spark History Server chỉ đọc được 1 path mỗi instance, thiết kế tách biệt 2 bucket:
+
+*   `spark-events-batch`: Event logs của SparkApplication batch jobs (ETL, ML, Airflow jobs).
+    *   Spark History Server [BATCH] đọc từ `s3a://spark-events-batch/`.
+    *   Thêm project mới = thêm app với tên khác, không cần bucket mới.
+*   `spark-events-connect`: Event logs của Spark Connect servers (sc-dev, tương lai sc-<project>).
+    *   Spark History Server [CONNECT] đọc `s3a://spark-events-connect/` (đọc cả sub-prefix).
+    *   Connect server chạy vĩnh viễn → log là `.inprogress` trong S3, History Server HIỂN THỊ "(running)" và poll cập nhật định kỳ.
+    *   Sau khi restart: log cũ được finalize, vẫn xem lại được bình thường.
+    *   Mỗi connect server mới dùng sub-prefix riêng: `sc-dev/`, `sc-project-a/`, v.v.
+
+KHONG cần nhiều Spark History Server theo số lượng project — 2 History Server (batch + connect) đủ cho toàn bộ hệ thống.
+
+## 6. Expose Services
+
+*   MinIO Console (UI): `https://minio.lakehouse.local` — Traefik Ingress + cert-manager TLS.
+*   MinIO S3 API: Service ClusterIP port `9000` — chỉ truy cập nội bộ cluster qua `minio.minio.svc.cluster.local:9000`.
+*   Không expose S3 API ra ngoài cluster bằng Ingress.
+
+## 7. Production Rules
+
+*   Không dùng Helm CLI `helm upgrade --install` để quản lý release trong cluster. Mọi thay đổi phải đi qua Git → ArgoCD sync.
+*   Credentials MinIO phải được lưu trong Kubernetes Secret, không commit plaintext vào Git. File `spark-sc-dev.yaml` hiện chứa credentials placeholder — thay bằng Secret reference trước khi dùng production.
+*   Spark batch jobs: `spark.eventLog.dir=s3a://spark-events-batch/` (flat, không sub-prefix, phân biệt project bằng app name).
+*   Spark Connect server: `spark.eventLog.dir=s3a://spark-events-connect/sc-<name>/` (sub-prefix theo tên server).
+*   Spark History Server chỉ đọc 1 path → cần 2 History Server instances (batch + connect). 2 instances là đủ dù có bao nhiêu project.
+*   Connect server log in-progress: History Server hiển thị "(running)", update mỗi 10s. Không cần cấu hình gì thêm.
+*   MinIO standalone mode không có HA. Backup bucket định kỳ để bảo vệ event logs.
+*   Nếu muốn thêm bucket sau này, tạo thêm Job manifest dùng `mc` client hoặc thêm vào `buckets[]` trong values rồi ArgoCD sync.
