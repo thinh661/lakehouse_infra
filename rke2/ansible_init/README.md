@@ -132,3 +132,14 @@ sudo systemctl start rke2-server.service
 # 4. Kiểm tra lại trạng thái xem service đã chuyển sang active (running) chưa
 sudo systemctl status rke2-server.service
 ```
+
+## Đồng bộ thời gian trên 3 node để tránh lỗi calino 
+
+```
+sudo apt update && sudo apt install chrony -y # Ubuntu
+# Hoặc: sudo dnf install chrony -y          # CentOS/RHEL
+
+# Ép đồng bộ thời gian ngay lập tức
+sudo systemctl restart chrony
+sudo chronyc tracking
+```
